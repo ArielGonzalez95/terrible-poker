@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRoom } from '../hooks/useRoom.js'
 import { waLink, roomUrl, joinRoom, invokeGame, leaveRoom } from '../lib/rooms.js'
 import Chat from '../components/Chat.jsx'
@@ -15,13 +15,6 @@ export default function Lobby() {
   const [copied, setCopied] = useState(false)
 
   const amIn = me && players.some((p) => p.user_id === me)
-
-  // auto-join si ya tengo nombre guardado y todavía no estoy en la sala
-  useEffect(() => {
-    if (!room || !me || amIn || busy) return
-    const saved = localStorage.getItem('name')
-    if (saved) doJoin(saved)
-  }, [room, me, amIn])
 
   async function doJoin(n) {
     setBusy(true); setJoinErr('')
