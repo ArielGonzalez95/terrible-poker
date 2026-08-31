@@ -1,7 +1,7 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRoom } from '../hooks/useRoom.js'
-import { invokeGame } from '../lib/rooms.js'
+import { invokeGame, leaveRoom } from '../lib/rooms.js'
 import { bestHand, winners as calcWinners } from '../lib/poker.js'
 import Card from '../components/Card.jsx'
 import Chips from '../components/Chips.jsx'
@@ -41,10 +41,12 @@ const SLOTS = {
 export default function Table() {
   const { code } = useParams()
   const { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl } = useRoom(code)
+  const nav = useNavigate()
   const [betTo, setBetTo] = useState(0)
   const [busy, setBusy] = useState(false)
   const [now, setNow] = useState(Date.now())
   const timeoutSent = useRef(0)
+  const nextHandSent = useRef(0)
   const deckRef = useRef(null)
 
   useEffect(() => {
@@ -77,6 +79,16 @@ export default function Table() {
       invokeGame('timeout', { code }).catch(() => {})
     }
   }, [now, g.status, g.deadline, code])
+
+  // auto-siguiente mano a los 10s (lo dispara el anfitrión)
+  const amHost = players[0]?.user_id === me
+  useEffect(() => {
+    if (g.status !== 'hand_over' || !g.nextHandAt || !amHost) return
+    if (now > g.nextHandAt && nextHandSent.current !== g.nextHandAt) {
+      nextHandSent.current = g.nextHandAt
+      invokeGame('next_hand', { code }).catch(() => {})
+    }
+  }, [now, g.status, g.nextHandAt, amHost, code])
 
   const boardLen = g.board?.length || 0
   const shownBoard = useStagedReveal(boardLen)
@@ -126,14 +138,17 @@ export default function Table() {
     catch (e) { alert(String(e.message || e)); await refetch() }
     finally { setBusy(false) }
   }
-  async function nextHand() {
-    setBusy(true)
-    try { await invokeGame('next_hand', { code }); await refetch() }
+  async function showMyCards() {
+    try { await invokeGame('show', { code }); await refetch() }
     catch (e) { alert(String(e.message || e)) }
-    finally { setBusy(false) }
+  }
+  async function leave() {
+    if (!confirm('¿Salir de la sala?')) return
+    setBusy(true)
+    await leaveRoom(code)
+    nav('/')
   }
 
-  const iAmHost = players[0]?.user_id === me
   const stackOf = (id) => g.stacks?.[id] ?? players.find((p) => p.user_id === id)?.stack ?? 0
 
   // sizing de apuesta por % del pozo
@@ -161,6 +176,14 @@ export default function Table() {
     .map((id) => players.find((p) => p.user_id === id)?.name)
     .filter(Boolean)
 
+  const nextIn = g.nextHandAt ? Math.max(0, Math.ceil((g.nextHandAt - now) / 1000)) : null
+  const iFolded = g.folded?.[me]
+  const iRevealed = g.revealed?.includes(me)
+  const tournamentOver = room?.status === 'done' || !!g.champion
+  const championName = g.champion
+    ? (players.find((p) => p.user_id === g.champion)?.name || '—')
+    : null
+
   // set de cartas que forman la mano ganadora (para grisar el resto en el showdown)
   const winnerReveal = reveal.find((r) => winnerIds.includes(r.userId))
   const winSet = new Set(winnerReveal?.cards || [])
@@ -178,6 +201,11 @@ export default function Table() {
 
   return (
     <div className="screen table-screen">
+      <div className="table-top">
+        <span className="table-code">Sala {room.code}</span>
+        <button className="leave-btn" onClick={leave} disabled={busy}>Abandonar</button>
+      </div>
+
       <div className="felt">
         {/* maso al costado que "reparte" */}
         <div className="deck" ref={deckRef}>
@@ -216,7 +244,10 @@ export default function Table() {
           const isMe = p.user_id === me
           const res = g.results?.find((r) => r.userId === p.user_id)
           const oppHand = state.hands?.[p.user_id]
-          const showOpp = !isMe && revealHoles && !g.folded?.[p.user_id] && Array.isArray(oppHand)
+          const showOpp = !isMe && Array.isArray(oppHand) && (
+            (revealHoles && !g.folded?.[p.user_id]) ||
+            g.revealed?.includes(p.user_id)
+          )
           const pSet = dimEnabled ? revealSetFor(p.user_id) : null
           return (
             <div
@@ -264,22 +295,41 @@ export default function Table() {
       </div>
 
       {g.status === 'hand_over' && (
-        <div className="showdown">
-          {boardReady ? (
-            <>
-              <p className="win-line">
-                {winnerNames.length > 1
-                  ? `Empate: ${winnerNames.join(' y ')}`
-                  : `Ganó ${winnerNames[0] || '—'}`}
-              </p>
-              {g.showdownDescr
-                ? <p>con {g.showdownDescr}</p>
-                : <p>los demás se retiraron</p>}
-            </>
-          ) : (
-            <p>Repartiendo la mesa…</p>
-          )}
-        </div>
+        tournamentOver ? (
+          <div className="banner banner-champ">
+            <div className="banner-trophy">🏆</div>
+            <div className="banner-kicker">GANADOR DEL TORNEO</div>
+            <div className="banner-name">{championName || winnerNames[0] || '—'}</div>
+            <button onClick={() => nav('/')}>Volver al inicio</button>
+          </div>
+        ) : (
+          <div className="banner">
+            {boardReady ? (
+              <>
+                <div className="banner-trophy">🏆</div>
+                <div className="banner-kicker">
+                  {winnerNames.length > 1 ? 'EMPATE' : 'GANÓ'}
+                </div>
+                <div className="banner-name">
+                  {winnerNames.length > 1 ? winnerNames.join(' y ') : (winnerNames[0] || '—')}
+                </div>
+                <div className="banner-sub">
+                  {g.showdownDescr ? `con ${g.showdownDescr}` : 'los demás se retiraron'}
+                  {g.potWon ? ` · +${g.potWon}` : ''}
+                </div>
+                {nextIn != null && (
+                  <div className="banner-count">Próxima mano en {nextIn}s</div>
+                )}
+                {iFolded && !iRevealed && (
+                  <button className="btn-show" onClick={showMyCards}>Mostrar mis cartas</button>
+                )}
+                {iFolded && iRevealed && <div className="banner-sub">Mostraste tus cartas ✓</div>}
+              </>
+            ) : (
+              <div className="banner-kicker">Repartiendo la mesa…</div>
+            )}
+          </div>
+        )
       )}
 
       {g.status === 'hand_over' && boardReady && reveal.length > 0 && (
@@ -366,13 +416,6 @@ export default function Table() {
           </div>
         )}
 
-        {g.status === 'hand_over' && (
-          iAmHost
-            ? <button onClick={nextHand} disabled={busy}>
-                {room.status === 'done' ? 'Torneo terminado' : 'Siguiente mano'}
-              </button>
-            : <p>Esperando al anfitrión…</p>
-        )}
       </div>
 
       <Chat

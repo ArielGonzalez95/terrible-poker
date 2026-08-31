@@ -45,6 +45,10 @@ interface Pub {
   showdownDescr: string | null
   results: { userId: Id; delta: number }[]
   reveal?: { userId: Id; cards: string[]; mano: string }[] // 5 cartas ganadoras por jugador
+  potWon?: number          // fichas que se llevó el ganador
+  nextHandAt?: number      // epoch ms: auto-siguiente mano
+  champion?: Id | null     // ganador del torneo (si terminó)
+  revealed?: Id[]          // foldeados que eligieron mostrar sus cartas
 }
 
 // ------------------------------------------------------------------ http
@@ -92,6 +96,10 @@ Deno.serve(async (req) => {
         return json(await act(admin, room, players, user.id, body))
       case 'timeout':
         return json(await handleTimeout(admin, room, players))
+      case 'show':
+        return json(await showCards(admin, room, user.id))
+      case 'leave':
+        return json(await leave(admin, room, user.id))
       default:
         return json({ error: 'op desconocida: ' + op }, 400)
     }
@@ -476,19 +484,59 @@ async function finishHand(
   pub.winners = winners
   pub.showdownDescr = descr ?? pub.showdownDescr
   pub.deadline = 0
+  pub.revealed = []
+  pub.potWon = Math.max(...Object.values(payouts))
 
   // persistir stacks en players
   for (const id of pub.order) {
     await admin.from('players').update({ stack: pub.stacks[id] }).eq('room_id', room.id).eq('user_id', id)
   }
 
-  // ¿alguien se quedó sin fichas y solo queda 1 con fichas? -> torneo terminado
+  // torneo terminado si queda 1 (o 0) con fichas; si no, auto-siguiente en 10s
   const withChips = pub.order.filter((id) => pub.stacks[id] > 0)
   if (withChips.length <= 1) {
+    pub.champion = withChips[0] ?? null
+    pub.nextHandAt = undefined
     await admin.from('rooms').update({ status: 'done' }).eq('id', room.id)
+  } else {
+    pub.champion = null
+    pub.nextHandAt = Date.now() + 10_000
   }
 
   return save(admin, room.id, pub, gs)
+}
+
+// jugador abandona la sala
+async function leave(admin: any, room: any, uid: Id) {
+  const { data: gs } = await admin.from('game_state').select('*').eq('room_id', room.id).maybeSingle()
+  if (gs && gs.public?.status === 'betting') {
+    const pub: Pub = gs.public
+    if (pub.order.includes(uid) && !pub.folded[uid]) {
+      pub.folded[uid] = true
+      pub.acted[uid] = true
+      if (pub.turnUserId === uid) {
+        await advance(admin, room, gs, pub)
+      } else if (activeIds(pub).length === 1) {
+        await finishHand(admin, room, gs, pub, [activeIds(pub)[0]])
+      } else {
+        await save(admin, room.id, pub, gs)
+      }
+    }
+  }
+  await admin.from('players').delete().eq('room_id', room.id).eq('user_id', uid)
+  return { ok: true }
+}
+
+// foldeado que elige mostrar sus cartas durante el hand_over
+async function showCards(admin: any, room: any, uid: Id) {
+  const { data: gs } = await admin.from('game_state').select('*').eq('room_id', room.id).single()
+  if (!gs) throw new Error('sin mano')
+  const pub: Pub = gs.public
+  if (pub.status !== 'hand_over') throw new Error('la mano no terminó')
+  pub.revealed = pub.revealed ?? []
+  if (!pub.revealed.includes(uid)) pub.revealed.push(uid)
+  await admin.from('game_state').update({ public: pub, updated_at: new Date().toISOString() }).eq('room_id', room.id)
+  return { ok: true }
 }
 
 async function save(admin: any, roomId: string, pub: Pub, gs: any) {

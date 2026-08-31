@@ -93,7 +93,54 @@ button:disabled { opacity: 0.4; box-shadow: none; }
 .err { color: #ff9b9b; font-size: 0.9rem; }
 
 /* ---------- MESA ---------- */
-.table-screen { max-width: 520px; justify-content: space-between; }
+.table-screen { max-width: 520px; justify-content: flex-start; gap: 10px; }
+
+.table-top {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.table-code { font-weight: 800; color: var(--dorado); letter-spacing: 1px; font-size: 0.9rem; }
+.leave-btn {
+  min-height: 34px; padding: 4px 12px; font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.1); color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.leave-btn.wide { width: 100%; min-height: 42px; }
+
+/* ---- cartel de ganador ---- */
+.banner {
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(246, 180, 14, 0.22), transparent 70%),
+    linear-gradient(180deg, rgba(10, 32, 24, 0.95), rgba(6, 18, 13, 0.95));
+  border: 1px solid rgba(246, 180, 14, 0.5);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(246, 180, 14, 0.08);
+  animation: bannerPop 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes bannerPop {
+  from { transform: scale(0.85) translateY(12px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.banner-trophy { font-size: 2.2rem; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); animation: trophySpin 0.6s ease-out both; }
+@keyframes trophySpin { from { transform: rotate(-25deg) scale(0.5); } to { transform: rotate(0) scale(1); } }
+.banner-kicker { font-size: 0.75rem; letter-spacing: 3px; color: var(--celeste); font-weight: 700; }
+.banner-name {
+  font-size: 1.7rem; font-weight: 900; color: #fff;
+  text-shadow: 0 2px 12px rgba(246, 180, 14, 0.6);
+  line-height: 1.1;
+}
+.banner-sub { font-size: 0.85rem; color: var(--dorado); }
+.banner-count {
+  margin-top: 4px; font-size: 0.78rem; color: rgba(255, 255, 255, 0.65);
+}
+.banner .btn-show {
+  margin-top: 8px; background: var(--celeste); min-height: 40px; padding: 0 18px;
+}
+.banner-champ { border-color: var(--dorado); }
+.banner-champ .banner-name { font-size: 2rem; color: var(--dorado); }
+.banner-champ button { margin-top: 10px; background: var(--dorado); color: #1a1200; min-height: 44px; }
 
 .felt {
   position: relative;

@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useRoom } from '../hooks/useRoom.js'
-import { waLink, roomUrl, joinRoom, invokeGame } from '../lib/rooms.js'
+import { waLink, roomUrl, joinRoom, invokeGame, leaveRoom } from '../lib/rooms.js'
 import Chat from '../components/Chat.jsx'
 
 export default function Lobby() {
@@ -104,6 +104,13 @@ export default function Lobby() {
             {canStart ? 'Empezar partida' : 'Faltan jugadores (mín. 2)'}
           </button>
         : <p>Esperando que el anfitrión arranque…</p>}
+
+      <button
+        className="leave-btn wide"
+        onClick={async () => { await leaveRoom(code); nav('/') }}
+      >
+        Abandonar sala
+      </button>
 
       <Chat
         messages={messages}

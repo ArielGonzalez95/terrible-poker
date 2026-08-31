@@ -59,6 +59,10 @@ export function waLink(code) {
   return `https://wa.me/?text=${encodeURIComponent(text)}`
 }
 
+export async function leaveRoom(code) {
+  try { await invokeGame('leave', { code }) } catch { /* seguir igual */ }
+}
+
 export async function invokeGame(op, payload) {
   const { data, error } = await supabase.functions.invoke('game', {
     body: { op, ...payload },
