@@ -498,6 +498,16 @@ async function finishHand(
     pub.champion = withChips[0] ?? null
     pub.nextHandAt = undefined
     await admin.from('rooms').update({ status: 'done' }).eq('id', room.id)
+    // sumar torneo ganado a la tabla de posiciones
+    if (pub.champion) {
+      const { data: champ } = await admin.from('players')
+        .select('name').eq('room_id', room.id).eq('user_id', pub.champion).maybeSingle()
+      if (champ?.name) {
+        await admin.rpc('inc_win', { p_name: champ.name }).then(
+          () => {}, (e: unknown) => console.error('inc_win', e),
+        )
+      }
+    }
   } else {
     pub.champion = null
     pub.nextHandAt = Date.now() + 10_000

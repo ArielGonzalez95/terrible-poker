@@ -92,6 +92,27 @@ button:disabled { opacity: 0.4; box-shadow: none; }
 
 .err { color: #ff9b9b; font-size: 0.9rem; }
 
+.btn.ghost {
+  background: rgba(255, 255, 255, 0.08); color: var(--ink);
+  border: 1px solid rgba(246, 180, 14, 0.4);
+  padding: 12px; border-radius: 10px;
+}
+
+/* ---- tabla de posiciones ---- */
+.rank-sub { text-align: center; color: rgba(255, 255, 255, 0.6); font-size: 0.85rem; margin-top: -8px; }
+.rank-table { padding: 6px; gap: 0; }
+.rank-row {
+  display: grid; grid-template-columns: 28px 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 10px 8px; font-size: 0.95rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.rank-row:last-child { border-bottom: none; }
+.rank-row.top { background: rgba(246, 180, 14, 0.08); }
+.rank-pos { text-align: center; color: rgba(255, 255, 255, 0.5); font-weight: 700; }
+.rank-name { font-weight: 700; }
+.rank-wins { font-weight: 900; color: var(--dorado); font-size: 1.1rem; }
+
 /* ---------- MESA ---------- */
 .table-screen { max-width: 520px; justify-content: flex-start; gap: 10px; }
 

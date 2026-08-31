@@ -5,6 +5,7 @@ import './styles.css'
 import Home from './screens/Home.jsx'
 import Lobby from './screens/Lobby.jsx'
 import Table from './screens/Table.jsx'
+import Ranking from './screens/Ranking.jsx'
 import Toaster from './components/Toaster.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/" element={<Home />} />
         <Route path="/sala/:code" element={<Lobby />} />
         <Route path="/mesa/:code" element={<Table />} />
+        <Route path="/ranking" element={<Ranking />} />
       </Routes>
       <Toaster />
     </BrowserRouter>

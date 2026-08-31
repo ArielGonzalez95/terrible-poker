@@ -84,5 +84,20 @@ create policy voces_read on storage.objects for select using (bucket_id = 'voces
 create policy voces_write on storage.objects for insert to authenticated
   with check (bucket_id = 'voces');
 
+-- ============ tabla de posiciones (torneos ganados por nombre) ============
+create table if not exists standings (
+  name text primary key,
+  wins int not null default 0,
+  last_win timestamptz
+);
+alter table standings enable row level security;
+create policy standings_read on standings for select using (true);
+
+create or replace function inc_win(p_name text) returns void
+language sql security definer as $$
+  insert into standings (name, wins, last_win) values (p_name, 1, now())
+  on conflict (name) do update set wins = standings.wins + 1, last_win = now();
+$$;
+
 -- realtime
 alter publication supabase_realtime add table rooms, players, game_state, messages;

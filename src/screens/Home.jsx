@@ -84,6 +84,10 @@ export default function Home() {
         <button onClick={onCreate} disabled={busy}>Crear sala</button>
       </div>
 
+      <button className="btn ghost" onClick={() => nav('/ranking')}>
+        🏆 Tabla de posiciones
+      </button>
+
       {err && <p className="err">{err}</p>}
     </div>
   )
