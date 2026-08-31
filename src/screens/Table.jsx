@@ -7,6 +7,7 @@ import Card from '../components/Card.jsx'
 import Chips from '../components/Chips.jsx'
 import DealCard from '../components/DealCard.jsx'
 import Chat from '../components/Chat.jsx'
+import { toast } from '../lib/toast.js'
 
 // revela cartas de la mesa de a poco: flop (3 juntas), luego turn y river 1x1
 function useStagedReveal(targetLen) {
@@ -44,6 +45,7 @@ export default function Table() {
   const nav = useNavigate()
   const [betTo, setBetTo] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [leaveAsk, setLeaveAsk] = useState(false)
   const [now, setNow] = useState(Date.now())
   const timeoutSent = useRef(0)
   const nextHandSent = useRef(0)
@@ -135,15 +137,15 @@ export default function Table() {
     if (busy) return
     setBusy(true)
     try { await invokeGame('act', { code, action, ...extra }); await refetch() }
-    catch (e) { alert(String(e.message || e)); await refetch() }
+    catch (e) { toast(String(e.message || e), 'error'); await refetch() }
     finally { setBusy(false) }
   }
   async function showMyCards() {
     try { await invokeGame('show', { code }); await refetch() }
-    catch (e) { alert(String(e.message || e)) }
+    catch (e) { toast(String(e.message || e), 'error') }
   }
   async function leave() {
-    if (!confirm('¿Salir de la sala?')) return
+    if (!leaveAsk) { setLeaveAsk(true); return }
     setBusy(true)
     await leaveRoom(code)
     nav('/')
@@ -203,7 +205,15 @@ export default function Table() {
     <div className="screen table-screen">
       <div className="table-top">
         <span className="table-code">Sala {room.code}</span>
-        <button className="leave-btn" onClick={leave} disabled={busy}>Abandonar</button>
+        {leaveAsk ? (
+          <span className="leave-confirm">
+            ¿Salir?
+            <button className="leave-btn" onClick={leave} disabled={busy}>Sí</button>
+            <button className="leave-btn" onClick={() => setLeaveAsk(false)}>No</button>
+          </span>
+        ) : (
+          <button className="leave-btn" onClick={leave} disabled={busy}>Abandonar</button>
+        )}
       </div>
 
       <div className="felt">

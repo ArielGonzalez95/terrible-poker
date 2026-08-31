@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from '../lib/toast.js'
 
 function pickMime() {
   const opts = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac']
@@ -37,7 +38,7 @@ export default function Chat({ messages, me, myName, onSend, onSendVoice, voiceU
 
   async function startRec() {
     if (rec || !navigator.mediaDevices?.getUserMedia) {
-      if (!navigator.mediaDevices?.getUserMedia) alert('Micrófono no disponible (necesita HTTPS en el celu).')
+      if (!navigator.mediaDevices?.getUserMedia) toast('Micrófono no disponible (necesita HTTPS en el celu)', 'error')
       return
     }
     try {
@@ -53,7 +54,7 @@ export default function Chat({ messages, me, myName, onSend, onSendVoice, voiceU
         const ext = type.includes('mp4') || type.includes('aac') ? 'mp4' : 'webm'
         if (blob.size > 800) {
           try { await onSendVoice(blob, myName, ext) }
-          catch (err) { alert('No se pudo enviar: ' + (err.message || err)) }
+          catch (err) { toast('No se pudo enviar: ' + (err.message || err), 'error') }
         }
       }
       mrRef.current = mr
@@ -67,7 +68,7 @@ export default function Chat({ messages, me, myName, onSend, onSendVoice, voiceU
         })
       }, 1000)
     } catch {
-      alert('No se pudo acceder al micrófono. En iPhone/Android necesita HTTPS y permiso.')
+      toast('No se pudo acceder al micrófono (necesita HTTPS y permiso)', 'error')
     }
   }
 

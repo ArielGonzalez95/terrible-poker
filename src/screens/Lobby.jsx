@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRoom } from '../hooks/useRoom.js'
 import { waLink, roomUrl, joinRoom, invokeGame, leaveRoom } from '../lib/rooms.js'
 import Chat from '../components/Chat.jsx'
+import { toast } from '../lib/toast.js'
 
 export default function Lobby() {
   const { code } = useParams()
@@ -34,7 +35,7 @@ export default function Lobby() {
   async function start() {
     setBusy(true)
     try { await invokeGame('start', { code }); nav(`/mesa/${code}`) }
-    catch (e) { alert(String(e.message || e)) }
+    catch (e) { toast(String(e.message || e), 'error') }
     finally { setBusy(false) }
   }
 
@@ -42,7 +43,7 @@ export default function Lobby() {
     try {
       await navigator.clipboard.writeText(roomUrl(code))
       setCopied(true); setTimeout(() => setCopied(false), 1500)
-    } catch { prompt('Copiá el link:', roomUrl(code)) }
+    } catch { toast(roomUrl(code)) }
   }
 
   if (err) return <div className="screen"><p className="err">{err}</p></div>
