@@ -83,9 +83,13 @@ function avatarOf(id) {
   return AVATARS[h % AVATARS.length]
 }
 
-export default function Table() {
+// useData: fuente de la sala (useRoom = Supabase real; useDemoRoom = bots locales en /demo)
+export default function Table({ useData = useRoom }) {
   const { code } = useParams()
-  const { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl, reactions, sendReaction } = useRoom(code)
+  const data = useData(code)
+  const { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl, reactions, sendReaction } = data
+  const invoke = data.invoke || invokeGame
+  const doLeave = data.leave || leaveRoom
   const nav = useNavigate()
   const [betTo, setBetTo] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -129,7 +133,7 @@ export default function Table() {
     if (g.status !== 'betting' || !g.deadline) return
     if (now > g.deadline + 1500 && timeoutSent.current !== g.deadline) {
       timeoutSent.current = g.deadline
-      invokeGame('timeout', { code }).catch(() => {})
+      invoke('timeout', { code }).catch(() => {})
     }
   }, [now, g.status, g.deadline, code])
 
@@ -139,7 +143,7 @@ export default function Table() {
     if (g.status !== 'hand_over' || !g.nextHandAt || !amHost) return
     if (now > g.nextHandAt && nextHandSent.current !== g.nextHandAt) {
       nextHandSent.current = g.nextHandAt
-      invokeGame('next_hand', { code }).catch(() => {})
+      invoke('next_hand', { code }).catch(() => {})
     }
   }, [now, g.status, g.nextHandAt, amHost, code])
 
@@ -181,7 +185,7 @@ export default function Table() {
     if (busy) return
     setBusy(true)
     setRaiseOpen(false)
-    try { await invokeGame('act', { code, action, ...extra }); await refetch() }
+    try { await invoke('act', { code, action, ...extra }); await refetch() }
     catch (e) { toast(String(e.message || e), 'error'); await refetch() }
     finally { setBusy(false) }
   }
@@ -192,13 +196,13 @@ export default function Table() {
     sendReaction(key)
   }
   async function showMyCards() {
-    try { await invokeGame('show', { code }); await refetch() }
+    try { await invoke('show', { code }); await refetch() }
     catch (e) { toast(String(e.message || e), 'error') }
   }
   async function leave() {
     if (!leaveAsk) { setLeaveAsk(true); return }
     setBusy(true)
-    await leaveRoom(code)
+    await doLeave(code)
     nav('/')
   }
 
@@ -432,7 +436,9 @@ export default function Table() {
                 <div className="banner-trophy">🏆</div>
                 <div className="banner-kicker">GANADOR DEL TORNEO</div>
                 <div className="banner-name">{championName || winnerNames[0] || '—'}</div>
-                <button onClick={() => nav('/')}>Volver al inicio</button>
+                {data.restart
+                  ? <button onClick={data.restart}>Jugar de nuevo</button>
+                  : <button onClick={() => nav('/')}>Volver al inicio</button>}
               </div>
             ) : (
               <div className="gg-banner">
@@ -564,14 +570,16 @@ export default function Table() {
         </div>
       </div>
 
-      <Chat
+      {data.extra}
+
+      {!data.demo && <Chat
         messages={messages}
         me={me}
         myName={players.find((p) => p.user_id === me)?.name || localStorage.getItem('name') || 'Yo'}
         onSend={sendMessage}
         onSendVoice={sendVoice}
         voiceUrl={voiceUrl}
-      />
+      />}
     </div>
   )
 }

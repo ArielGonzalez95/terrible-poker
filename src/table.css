@@ -70,8 +70,8 @@
   container-type: size;
 }
 .gg-rail {
-  position: absolute; left: -5%; right: -5%; top: 13%; bottom: 3%;
-  border-radius: 50% / 27%;
+  position: absolute; left: 8%; right: 8%; top: 13%; bottom: 4%;
+  border-radius: 50%;
   background: linear-gradient(180deg, #e2b56a 0%, #a8742f 30%, #c79446 55%, #7b5020 100%);
   padding: 13px;
   box-shadow:
@@ -83,7 +83,7 @@
 }
 .gg-felt {
   width: 100%; height: 100%;
-  border-radius: 50% / 27%;
+  border-radius: 50%;
   background:
     radial-gradient(ellipse 60% 40% at 50% 42%, rgba(255, 255, 255, 0.07), transparent 70%),
     radial-gradient(ellipse at 50% 45%, #1d7058 0%, #135a45 50%, #0c4434 85%, #08362a 100%);
@@ -96,8 +96,8 @@
 }
 /* línea de apuestas tenue */
 .gg-felt::after {
-  content: ""; position: absolute; inset: 9% 13%;
-  border-radius: 50% / 30%;
+  content: ""; position: absolute; inset: 8% 12%;
+  border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 .gg-watermark {
@@ -437,3 +437,29 @@
 .gg-picker button span { font-size: 1.7rem; line-height: 1.1; }
 .gg-picker button small { font-size: 0.62rem; font-weight: 600; opacity: 0.8; }
 .gg-picker button:active { background: rgba(255, 216, 74, 0.25); }
+
+/* ---- panel del modo prueba (/demo) ---- */
+.demo-panel {
+  position: fixed; z-index: 50; left: 50%; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top) + 56px);
+  width: min(360px, calc(100vw - 24px));
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.demo-toggle {
+  min-height: 0; padding: 4px 12px; border-radius: 999px; font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.6); color: #ffd84a; box-shadow: none;
+  border: 1px solid rgba(255, 216, 74, 0.4);
+}
+.demo-body {
+  width: 100%; padding: 8px; border-radius: 12px;
+  background: rgba(8, 10, 12, 0.92); border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.demo-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.demo-row > span { font-size: 0.7rem; color: rgba(255, 255, 255, 0.55); min-width: 62px; }
+.demo-btn {
+  min-height: 28px; padding: 3px 9px; font-size: 0.72rem; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08); color: #fff; box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.demo-btn.on { background: #ffd84a; color: #1a1200; border-color: #ffd84a; }

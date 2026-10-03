@@ -7,6 +7,7 @@ import Lobby from './screens/Lobby.jsx'
 import Table from './screens/Table.jsx'
 import Ranking from './screens/Ranking.jsx'
 import Toaster from './components/Toaster.jsx'
+import { useDemoRoom } from './hooks/useDemoRoom.jsx'
 import { registerSW } from 'virtual:pwa-register'
 
 // PWA: en mobile (sobre todo iOS instalada) casi nunca se busca versión nueva.
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/sala/:code" element={<Lobby />} />
         <Route path="/mesa/:code" element={<Table />} />
         <Route path="/ranking" element={<Ranking />} />
+        <Route path="/demo" element={<Table useData={useDemoRoom} />} />
       </Routes>
       <Toaster />
     </BrowserRouter>
