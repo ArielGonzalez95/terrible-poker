@@ -3,11 +3,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRoom } from '../hooks/useRoom.js'
 import { invokeGame, leaveRoom } from '../lib/rooms.js'
 import { bestHand, winners as calcWinners } from '../lib/poker.js'
-import Card from '../components/Card.jsx'
-import Chips from '../components/Chips.jsx'
+import Card, { norm, rankLabel, suitSym } from '../components/Card.jsx'
+import Chips, { fmt } from '../components/Chips.jsx'
 import DealCard from '../components/DealCard.jsx'
 import Chat from '../components/Chat.jsx'
 import { toast } from '../lib/toast.js'
+import '../table.css'
 
 // revela cartas de la mesa de a poco: flop (3 juntas), luego turn y river 1x1
 function useStagedReveal(targetLen) {
@@ -32,20 +33,67 @@ function useStagedReveal(targetLen) {
   return shown
 }
 
-// posiciones relativas: yo siempre abajo-centro, resto rotan
-const SLOTS = {
-  2: ['bottom', 'top'],
-  3: ['bottom', 'top-left', 'top-right'],
-  4: ['bottom', 'left', 'top', 'right'],
+// posiciones (% de la mesa) de cada asiento; yo siempre abajo-izquierda y el resto en sentido horario
+const POS = {
+  me: [18, 86],
+  ll: [14, 61],
+  lm: [13, 32],
+  lu: [13, 19],
+  tl: [28, 9],
+  tc: [50, 8],
+  tr: [72, 9],
+  ru: [87, 19],
+  rm: [87, 32],
+  rl: [86, 61],
+}
+const LAYOUT = {
+  2: ['me', 'tc'],
+  3: ['me', 'lu', 'ru'],
+  4: ['me', 'lm', 'tc', 'rm'],
+  5: ['me', 'll', 'tl', 'tr', 'rl'],
+  6: ['me', 'll', 'lu', 'tc', 'ru', 'rl'],
+  7: ['me', 'll', 'lu', 'tl', 'tr', 'ru', 'rl'],
+  8: ['me', 'll', 'lm', 'lu', 'tl', 'tr', 'ru', 'rl'],
+  9: ['me', 'll', 'lm', 'lu', 'tl', 'tr', 'ru', 'rm', 'rl'],
+}
+const CENTER = [50, 47]
+const lerp = ([x, y], t) => [x + (CENTER[0] - x) * t, y + (CENTER[1] - y) * t]
+const pct = ([x, y]) => ({ left: `${x}%`, top: `${y}%` })
+
+// reacciones: tocar tu avatar → elegir cara → la ven todos ~3s
+const REACTIONS = {
+  enojado: ['😡', 'Enojado'],
+  frustrado: ['😤', 'Frustrado'],
+  suertudo: ['🍀', 'Suertudo'],
+  miedoso: ['😱', 'Miedoso'],
+  risa: ['😂', 'Jajaja'],
+  canchero: ['😎', 'Canchero'],
+  pensando: ['🤔', 'Pensando'],
+  llorando: ['😭', 'Llorando'],
+  aburrido: ['🥱', 'Aburrido'],
+  plata: ['🤑', 'Platita'],
+  rezando: ['🙏', 'Rezando'],
+  aplausos: ['👏', 'Bien jugado'],
+}
+
+const AVATARS = ['🐱', '🦊', '🐻', '🐼', '🦁', '🐯', '🐸', '🐵', '🐙', '🦉', '🐶', '🐨', '🦄', '🐧']
+function avatarOf(id) {
+  let h = 0
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return AVATARS[h % AVATARS.length]
 }
 
 export default function Table() {
   const { code } = useParams()
-  const { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl } = useRoom(code)
+  const { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl, reactions, sendReaction } = useRoom(code)
   const nav = useNavigate()
   const [betTo, setBetTo] = useState(0)
   const [busy, setBusy] = useState(false)
   const [leaveAsk, setLeaveAsk] = useState(false)
+  const [raiseOpen, setRaiseOpen] = useState(false)
+  const [revealOpen, setRevealOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const lastReactAt = useRef(0)
   const [now, setNow] = useState(Date.now())
   const timeoutSent = useRef(0)
   const nextHandSent = useRef(0)
@@ -61,7 +109,10 @@ export default function Table() {
   useEffect(() => {
     const mr = (pub0?.currentBet || 0) + (pub0?.minRaise || pub0?.blind || 0)
     setBetTo(mr)
+    setRaiseOpen(false)
   }, [pub0?.currentBet, pub0?.turnUserId, pub0?.handNo])
+
+  useEffect(() => { setRevealOpen(false) }, [pub0?.handNo])
 
   const g = state?.public || {}
 
@@ -95,23 +146,6 @@ export default function Table() {
   const boardLen = g.board?.length || 0
   const shownBoard = useStagedReveal(boardLen)
 
-  // "quema" una carta al repartir y en cada nueva calle
-  const [burnTick, setBurnTick] = useState(0)
-  const prevShown = useRef(shownBoard)
-  const prevHand = useRef(g.handNo)
-  useEffect(() => {
-    if (shownBoard !== prevShown.current) {
-      prevShown.current = shownBoard
-      setBurnTick((t) => t + 1)
-    }
-  }, [shownBoard])
-  useEffect(() => {
-    if (g.handNo && g.handNo !== prevHand.current) {
-      prevHand.current = g.handNo
-      setBurnTick((t) => t + 1)
-    }
-  }, [g.handNo])
-
   // showdown calculado en el cliente (no depende de que el server mande `reveal`)
   const clientReveal = useMemo(() => {
     if (g.status !== 'hand_over' || boardLen !== 5 || !state?.hands) return []
@@ -121,6 +155,15 @@ export default function Table() {
     return ids.map((id) => ({ userId: id, ...bestHand(state.hands[id], g.board) }))
   }, [g.status, boardLen, g.board, g.folded, g.order, state?.hands])
 
+  // nombre de mi mano con las cartas que ya se ven
+  const myHandRaw = state?.hands?.[me]
+  const myHandName = useMemo(() => {
+    if (!Array.isArray(myHandRaw) || myHandRaw.length !== 2) return ''
+    const vis = (g.board || []).slice(0, shownBoard)
+    if (vis.length < 3 && norm(myHandRaw[0])?.[0] !== norm(myHandRaw[1])?.[0]) return ''
+    try { return bestHand(myHandRaw, vis).mano } catch { return '' }
+  }, [myHandRaw, g.board, shownBoard])
+
   if (err) return <div className="screen"><p className="err">{err}</p></div>
   if (!room || !state) return <div className="screen"><p>Cargando mesa…</p></div>
 
@@ -129,16 +172,24 @@ export default function Table() {
   const myTurn = turnId === me && g.status === 'betting'
   const myBet = g.bets?.[me] || 0
   const toCall = (g.currentBet || 0) - myBet
-  const slots = SLOTS[ordered.length] || SLOTS[4]
+  const layout = LAYOUT[ordered.length] || LAYOUT[9]
   const secsLeft = g.deadline ? Math.max(0, Math.ceil((g.deadline - now) / 1000)) : null
+  const playTimeout = room.config?.playTimeout || 30
   const minRaiseTo = (g.currentBet || 0) + (g.minRaise || g.blind || 0)
 
   async function act(action, extra = {}) {
     if (busy) return
     setBusy(true)
+    setRaiseOpen(false)
     try { await invokeGame('act', { code, action, ...extra }); await refetch() }
     catch (e) { toast(String(e.message || e), 'error'); await refetch() }
     finally { setBusy(false) }
+  }
+  function react(key) {
+    setPickerOpen(false)
+    if (Date.now() - lastReactAt.current < 1500) return // anti-spam
+    lastReactAt.current = Date.now()
+    sendReaction(key)
   }
   async function showMyCards() {
     try { await invokeGame('show', { code }); await refetch() }
@@ -152,9 +203,11 @@ export default function Table() {
   }
 
   const stackOf = (id) => g.stacks?.[id] ?? players.find((p) => p.user_id === id)?.stack ?? 0
+  const nameOf = (id) => players.find((p) => p.user_id === id)?.name || '…'
 
   // sizing de apuesta por % del pozo
-  const potForSizing = (g.pot || 0) + Object.values(g.bets || {}).reduce((a, b) => a + (b || 0), 0)
+  const betsSum = Object.values(g.bets || {}).reduce((a, b) => a + (b || 0), 0)
+  const potForSizing = (g.pot || 0) + betsSum
   const myMaxTotal = myBet + stackOf(me)
   const clampBet = (v) => Math.max(minRaiseTo, Math.min(myMaxTotal, Math.round(v)))
   const presetBet = (frac) => clampBet((g.currentBet || 0) + potForSizing * frac)
@@ -162,7 +215,6 @@ export default function Table() {
 
   const boardReady = shownBoard >= boardLen
   const isShowdown = g.status === 'hand_over' && !!g.showdownDescr
-  // en all-in: primero se ven las 2 manos, después se reparte la mesa de a poco
   const revealHoles = isShowdown
   const reveal = clientReveal.length ? clientReveal : (g.reveal || [])
 
@@ -173,259 +225,343 @@ export default function Table() {
     clientReveal.forEach((r) => { hm[r.userId] = state.hands[r.userId] })
     winnerIds = calcWinners(hm, g.board, clientReveal.map((r) => r.userId))
   }
-
-  const winnerNames = winnerIds
-    .map((id) => players.find((p) => p.user_id === id)?.name)
-    .filter(Boolean)
+  const winnerNames = winnerIds.map((id) => players.find((p) => p.user_id === id)?.name).filter(Boolean)
 
   const nextIn = g.nextHandAt ? Math.max(0, Math.ceil((g.nextHandAt - now) / 1000)) : null
   const iFolded = g.folded?.[me]
   const iRevealed = g.revealed?.includes(me)
   const tournamentOver = room?.status === 'done' || !!g.champion
-  const championName = g.champion
-    ? (players.find((p) => p.user_id === g.champion)?.name || '—')
-    : null
+  const championName = g.champion ? (players.find((p) => p.user_id === g.champion)?.name || '—') : null
+  const handOver = g.status === 'hand_over'
 
   // set de cartas que forman la mano ganadora (para grisar el resto en el showdown)
   const winnerReveal = reveal.find((r) => winnerIds.includes(r.userId))
   const winSet = new Set(winnerReveal?.cards || [])
-  const revealSetFor = (id) => new Set(reveal.find((r) => r.userId === id)?.cards || [])
-  const dimEnabled =
-    g.status === 'hand_over' && boardReady && !!g.showdownDescr &&
-    reveal.length > 0 && winSet.size > 0
+  const revealFor = (id) => reveal.find((r) => r.userId === id)
+  const dimEnabled = handOver && boardReady && !!g.showdownDescr && reveal.length > 0 && winSet.size > 0
 
-  // cartas quemadas al descarte: 1 pre-flop + 1 por cada calle mostrada
-  const burned =
-    (g.handNo ? 1 : 0) +
-    (shownBoard >= 3 ? 1 : 0) + (shownBoard >= 4 ? 1 : 0) + (shownBoard >= 5 ? 1 : 0)
-  const dealtTotal = (g.handNo ? ordered.length * 2 : 0) + burned + shownBoard
-  const deckLeft = Math.max(0, 52 - dealtTotal)
+  // ciegas: SB / BB (misma regla que el server)
+  const order = g.order || []
+  const btnIdx = order.indexOf(g.button)
+  const heads = order.length === 2
+  const sbId = btnIdx < 0 ? null : heads ? g.button : order[(btnIdx + 1) % order.length]
+  const bbId = btnIdx < 0 ? null : heads ? order[(btnIdx + 1) % order.length] : order[(btnIdx + 2) % order.length]
+  const hpb = room.config?.handsPerBlindUp
+  const blindUpIn = hpb && g.handNo ? hpb - ((g.handNo - 1) % hpb) : null
+  const avgStack = ordered.length
+    ? Math.round(ordered.reduce((a, p) => a + stackOf(p.user_id) + (g.bets?.[p.user_id] || 0), 0) / ordered.length)
+    : 0
 
   return (
-    <div className="screen table-screen">
-      <div className="table-top">
-        <span className="table-code">Sala {room.code}</span>
-        {leaveAsk ? (
-          <span className="leave-confirm">
-            ¿Salir?
-            <button className="leave-btn" onClick={leave} disabled={busy}>Sí</button>
-            <button className="leave-btn" onClick={() => setLeaveAsk(false)}>No</button>
-          </span>
-        ) : (
-          <button className="leave-btn" onClick={leave} disabled={busy}>Abandonar</button>
-        )}
-      </div>
-
-      <div className="felt">
-        {/* maso al costado que "reparte" */}
-        <div className="deck" ref={deckRef}>
-          <span /><span /><span /><span />
-          <div className="deck-count">{deckLeft}</div>
-        </div>
-        {/* descarte (cartas quemadas, boca abajo) */}
-        <div className="discard">
-          <span /><span />
-          <div className="discard-count">🗑 {burned}</div>
-        </div>
-        {/* carta quemada volando del maso al descarte */}
-        <div className="burn-card" key={burnTick} aria-hidden="true" />
-
-        {(g.pot || 0) > 0 && (
-          <div className="pot" key={g.pot}>
-            <Chips amount={g.pot} variant="pot" />
-          </div>
-        )}
-
-        <div className="board">
-          {[0, 1, 2, 3, 4].map((i) => {
-            const dealt = g.board?.[i] && i < shownBoard
-            // slot vacío = solo contorno, NO un dorso de carta
-            if (!dealt) return <div key={`b${i}-slot`} className="board-slot" />
-            const delay = i < 3 ? i * 130 : 0
-            return (
-              <DealCard key={`b${i}-${g.handNo}-${g.board[i]}`} originRef={deckRef} delay={delay}>
-                <Card code={g.board[i]} dim={dimEnabled && !winSet.has(g.board[i])} />
-              </DealCard>
-            )
-          })}
-        </div>
-
-        {ordered.map((p, idx) => {
-          const isMe = p.user_id === me
-          const res = g.results?.find((r) => r.userId === p.user_id)
-          const oppHand = state.hands?.[p.user_id]
-          const showOpp = !isMe && Array.isArray(oppHand) && (
-            (revealHoles && !g.folded?.[p.user_id]) ||
-            g.revealed?.includes(p.user_id)
-          )
-          const pSet = dimEnabled ? revealSetFor(p.user_id) : null
-          return (
-            <div
-              key={p.user_id}
-              className={`seat ${slots[idx]} ${p.user_id === turnId ? 'active' : ''} ${g.folded?.[p.user_id] ? 'folded' : ''}`}
-            >
-              <div className="seat-name">
-                {p.user_id === g.button && '🔘 '}{p.name}{isMe && ' (vos)'}
-              </div>
-              <div className="seat-stack">
-                <Chips amount={stackOf(p.user_id)} variant="stack" />
-                <span>{stackOf(p.user_id)}{g.allIn?.[p.user_id] && ' · ALL-IN'}</span>
-              </div>
-              <div className="seat-cards">
-                {isMe
-                  ? myHand.map((c, i) => (
-                      <DealCard key={`m${g.handNo}-${i}-${c}`} originRef={deckRef} delay={idx * 120 + i * 240}>
-                        <Card code={c} small dim={pSet ? !pSet.has(c) : false} />
-                      </DealCard>
-                    ))
-                  : showOpp
-                    ? oppHand.map((c, i) => (
-                        <Card key={`o${i}-${c}`} code={c} small animate dim={pSet ? !pSet.has(c) : false} />
-                      ))
-                    : [0, 1].map((i) => (
-                        <DealCard key={`bk${g.handNo}-${p.user_id}-${i}`} originRef={deckRef} delay={idx * 120 + i * 240}>
-                          <Card hidden small />
-                        </DealCard>
-                      ))}
-              </div>
-              {g.bets?.[p.user_id] > 0 && (
-                <div className="seat-bet">
-                  <Chips amount={g.bets[p.user_id]} variant="bet" />
-                </div>
-              )}
-              {g.status === 'hand_over' && boardReady && winnerIds.includes(p.user_id) && <div className="seat-win">🏆</div>}
-              {g.status === 'hand_over' && boardReady && res && (
-                <div className={`seat-delta ${res.delta >= 0 ? 'pos' : 'neg'}`}>
-                  {res.delta >= 0 ? '+' : ''}{res.delta}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {g.status === 'hand_over' && (
-        tournamentOver ? (
-          <div className="banner banner-champ">
-            <div className="banner-trophy">🏆</div>
-            <div className="banner-kicker">GANADOR DEL TORNEO</div>
-            <div className="banner-name">{championName || winnerNames[0] || '—'}</div>
-            <button onClick={() => nav('/')}>Volver al inicio</button>
-          </div>
-        ) : (
-          <div className="banner">
-            {boardReady ? (
-              <>
-                <div className="banner-trophy">🏆</div>
-                <div className="banner-kicker">
-                  {winnerNames.length > 1 ? 'EMPATE' : 'GANÓ'}
-                </div>
-                <div className="banner-name">
-                  {winnerNames.length > 1 ? winnerNames.join(' y ') : (winnerNames[0] || '—')}
-                </div>
-                <div className="banner-sub">
-                  {g.showdownDescr ? `con ${g.showdownDescr}` : 'los demás se retiraron'}
-                  {g.potWon ? ` · +${g.potWon}` : ''}
-                </div>
-                {nextIn != null && (
-                  <div className="banner-count">Próxima mano en {nextIn}s</div>
-                )}
-                {iFolded && !iRevealed && (
-                  <button className="btn-show" onClick={showMyCards}>Mostrar mis cartas</button>
-                )}
-                {iFolded && iRevealed && <div className="banner-sub">Mostraste tus cartas ✓</div>}
-              </>
-            ) : (
-              <div className="banner-kicker">Repartiendo la mesa…</div>
-            )}
-          </div>
-        )
-      )}
-
-      {g.status === 'hand_over' && boardReady && reveal.length > 0 && (
-        <div className="reveal-panel">
-          <div className="reveal-title">Cartas ganadoras</div>
-          {[...reveal]
-            .sort((a, b) => (winnerIds.includes(b.userId) ? 1 : 0) - (winnerIds.includes(a.userId) ? 1 : 0))
-            .map((r) => {
-              const nm = players.find((p) => p.user_id === r.userId)?.name || '—'
-              const won = winnerIds.includes(r.userId)
+    <div className="gg-screen">
+      <div className="gg-wrap">
+        <div className="gg-top">
+          <div className="gg-pill teal">
+            {myHand.map((c, i) => {
+              const n = norm(c)
+              if (!n) return null
               return (
-                <div key={r.userId} className={`reveal-row ${won ? 'win' : ''}`}>
-                  <div className="reveal-head">
-                    <span>{won ? '🏆 ' : ''}{nm}</span>
-                    <span className="reveal-mano">{r.mano}</span>
-                  </div>
-                  <div className="reveal-cards">
-                    {r.cards.map((c, i) => (
-                      <span key={c} className="reveal-card" style={{ animationDelay: `${i * 90}ms` }}>
-                        <Card code={c} small dim={!won && !winSet.has(c)} />
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <span key={i} className={`gg-mini ${n[1] === 'h' || n[1] === 'd' ? 'red' : ''}`}>
+                  <b>{suitSym(n[1])}</b>{rankLabel(n[0])}
+                </span>
               )
             })}
-        </div>
-      )}
-
-      <div className="controls">
-        {g.status === 'betting' && (
-          <div className="turn-info">
-            {myTurn
-              ? <b>Tu turno{secsLeft != null && ` · ${secsLeft}s`}</b>
-              : `Turno de ${players.find((p) => p.user_id === turnId)?.name || '…'}${secsLeft != null ? ` · ${secsLeft}s` : ''}`}
           </div>
-        )}
+          <div className="gg-pill">Sala {room.code}</div>
+          <div className="gg-top-right">
+            {leaveAsk ? (
+              <span className="gg-leave-ask">
+                ¿Salir?
+                <button onClick={leave} disabled={busy}>Sí</button>
+                <button onClick={() => setLeaveAsk(false)}>No</button>
+              </span>
+            ) : (
+              <button className="gg-icon-btn" onClick={leave} disabled={busy} aria-label="Abandonar">⏏</button>
+            )}
+          </div>
+        </div>
 
-        {myTurn && (
-          <div className="bet-ui">
-            <div className="bet-row">
-              <button className="btn-fold" onClick={() => act('fold')} disabled={busy}>Me retiro</button>
-              <button className="btn-call" onClick={() => act('call')} disabled={busy}>
-                {toCall > 0 ? `Pagar ${toCall}` : 'Paso'}
-              </button>
+        <div className="gg-table">
+          <div className="gg-rail"><div className="gg-felt" /></div>
+          <div className="gg-watermark">Terrible<br /><b>POKER</b></div>
+          {/* punto de reparto (centro) */}
+          <div className="gg-dealer-spot" ref={deckRef} />
+
+          {(potForSizing > 0) && (
+            <div className="gg-total">
+              <span>Bote total</span>
+              <b>{fmt(potForSizing)}</b>
             </div>
+          )}
 
-            {canRaise && (
-              <>
-                <div className="bet-presets">
-                  <button onClick={() => setBetTo(clampBet(minRaiseTo))} disabled={busy}>Mín</button>
-                  <button onClick={() => setBetTo(presetBet(0.33))} disabled={busy}>⅓ pozo</button>
-                  <button onClick={() => setBetTo(presetBet(0.5))} disabled={busy}>½ pozo</button>
-                  <button onClick={() => setBetTo(presetBet(0.75))} disabled={busy}>¾ pozo</button>
-                  <button onClick={() => setBetTo(presetBet(1))} disabled={busy}>Pozo</button>
+          <div className="gg-board">
+            {[0, 1, 2, 3, 4].map((i) => {
+              const dealt = g.board?.[i] && i < shownBoard
+              if (!dealt) return null
+              const delay = i < 3 ? i * 130 : 0
+              return (
+                <DealCard key={`b${i}-${g.handNo}-${g.board[i]}`} originRef={deckRef} delay={delay}>
+                  <Card code={g.board[i]} size="board" dim={dimEnabled && !winSet.has(g.board[i])} />
+                </DealCard>
+              )
+            })}
+          </div>
+
+          {(g.pot || 0) > 0 && (
+            <div className="gg-pot" key={g.pot}>
+              <Chips amount={g.pot} />
+            </div>
+          )}
+
+          {!handOver && g.handNo > 0 && (
+            <div className="gg-info">
+              <p>Ciegas: {fmt(g.sb)}/{fmt(g.blind)}{blindUpIn ? ` - sube en ${blindUpIn} mano${blindUpIn > 1 ? 's' : ''}` : ''}</p>
+              {blindUpIn && <p>Siguientes ciegas: {fmt(g.sb * 2)}/{fmt(g.blind * 2)}</p>}
+              <p>Mano #{g.handNo} · Stack medio {fmt(avgStack)}</p>
+              {g.status === 'betting' && (
+                <p className="gg-turn">
+                  {myTurn ? 'Tu turno' : `Turno de ${nameOf(turnId)}`}{secsLeft != null ? ` · ${secsLeft}s` : ''}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* fichas apostadas en la calle actual */}
+          {ordered.map((p, idx) => {
+            const amt = g.bets?.[p.user_id] || 0
+            if (amt <= 0) return null
+            return (
+              <div key={`bet-${p.user_id}`} className="gg-bet" style={pct(lerp(POS[layout[idx]], 0.42))}>
+                <Chips amount={amt} />
+              </div>
+            )
+          })}
+
+          {/* botón de dealer */}
+          {ordered.map((p, idx) => {
+            if (p.user_id !== g.button) return null
+            const [x, y] = lerp(POS[layout[idx]], 0.18)
+            return <div key="dealer" className="gg-dealer" style={pct([x + (x < 50 ? 9 : -9), y])}>D</div>
+          })}
+
+          {ordered.map((p, idx) => {
+            const id = p.user_id
+            const isMe = id === me
+            const pos = POS[layout[idx]]
+            const folded = !!g.folded?.[id]
+            const res = g.results?.find((r) => r.userId === id)
+            const oppHand = state.hands?.[id]
+            const inHand = g.handNo > 0 && !folded && order.includes(id)
+            const showOpp = !isMe && Array.isArray(oppHand) && (
+              (revealHoles && !folded) || g.revealed?.includes(id)
+            )
+            const rv = dimEnabled ? revealFor(id) : null
+            const pSet = rv ? new Set(rv.cards) : null
+            const active = id === turnId && g.status === 'betting'
+            const won = handOver && boardReady && winnerIds.includes(id)
+            const stack = stackOf(id)
+            const timeFrac = active && secsLeft != null ? Math.min(1, secsLeft / playTimeout) : 0
+            const badge = id === bbId ? 'BB' : id === sbId ? 'SB' : null
+            const label = isMe
+              ? myHandName
+              : (handOver && boardReady && (showOpp || winnerIds.includes(id)) ? revealFor(id)?.mano : '')
+
+            let cards = null
+            if (isMe && myHand.length) {
+              cards = myHand.map((c, i) => (
+                <DealCard key={`m${g.handNo}-${i}-${c}`} originRef={deckRef} delay={idx * 120 + i * 240}>
+                  <Card code={c} size="hole" dim={(pSet ? !pSet.has(c) : false) || folded} />
+                </DealCard>
+              ))
+            } else if (showOpp) {
+              cards = oppHand.map((c, i) => (
+                <Card key={`o${i}-${c}`} code={c} size="seat" animate dim={pSet ? !pSet.has(c) : false} />
+              ))
+            } else if (inHand) {
+              cards = [0, 1].map((i) => (
+                <DealCard key={`bk${g.handNo}-${id}-${i}`} originRef={deckRef} delay={idx * 120 + i * 240}>
+                  <Card hidden size="seat" />
+                </DealCard>
+              ))
+            }
+
+            return (
+              <div
+                key={id}
+                className={`gg-seat ${isMe ? 'me' : ''} ${active ? 'active' : ''} ${folded ? 'folded' : ''} ${won ? 'won' : ''}`}
+                style={pct(pos)}
+              >
+                <div
+                  className={`gg-ava-wrap ${isMe ? 'tappable' : ''}`}
+                  onClick={isMe ? () => setPickerOpen((o) => !o) : undefined}
+                >
+                  <div className="gg-ava">{avatarOf(id)}</div>
+                  {cards && <div className={`gg-cards ${isMe ? 'mine' : ''}`}>{cards}</div>}
+                  {badge && <span className="gg-badge">{badge}</span>}
+                  <span className="gg-flag" />
+                  {folded && !showOpp && <span className="gg-status">Retirado</span>}
+                  {reactions[id] && REACTIONS[reactions[id].key] && (
+                    <div className="gg-react" key={reactions[id].at}>
+                      <span className="gg-react-emoji">{REACTIONS[reactions[id].key][0]}</span>
+                      <span className="gg-react-label">{REACTIONS[reactions[id].key][1]}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="bet-slider">
-                  <input
-                    type="range"
-                    min={minRaiseTo}
-                    max={myMaxTotal}
-                    step={5}
-                    value={Math.min(Math.max(betTo, minRaiseTo), myMaxTotal)}
-                    onChange={(e) => setBetTo(+e.target.value)}
-                  />
-                  <div className="bet-amount">
-                    <Chips amount={betTo} variant="bet" />
-                    <b>{betTo}</b>
+                <div className="gg-plate">
+                  <div className="gg-name">{p.name}</div>
+                  <div className="gg-stack">
+                    {g.allIn?.[id] && stack === 0 ? 'ALL-IN' : fmt(stack)}
                   </div>
                 </div>
-                <button
-                  className="btn-raise"
-                  onClick={() => act(betTo >= myMaxTotal ? 'allin' : 'raise', { amount: betTo })}
-                  disabled={busy}
-                >
-                  {betTo >= myMaxTotal ? 'Voy con todo' : `${g.currentBet > 0 ? 'Subir a' : 'Apostar'} ${betTo}`}
-                </button>
-              </>
-            )}
+                {active && (
+                  <div className="gg-timer"><i style={{ width: `${timeFrac * 100}%` }} /></div>
+                )}
+                {label && <div className="gg-handname">{label}</div>}
+                {handOver && boardReady && res && res.delta !== 0 && (
+                  <div className={`gg-delta ${res.delta > 0 ? 'pos' : 'neg'}`}>
+                    {res.delta > 0 ? '+' : ''}{fmt(res.delta)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
-            {!canRaise && (
-              <button className="btn-raise" onClick={() => act('allin')} disabled={busy}>Voy con todo</button>
-            )}
-          </div>
-        )}
+          {handOver && (
+            tournamentOver ? (
+              <div className="gg-banner champ">
+                <div className="banner-trophy">🏆</div>
+                <div className="banner-kicker">GANADOR DEL TORNEO</div>
+                <div className="banner-name">{championName || winnerNames[0] || '—'}</div>
+                <button onClick={() => nav('/')}>Volver al inicio</button>
+              </div>
+            ) : (
+              <div className="gg-banner">
+                {boardReady ? (
+                  <>
+                    <div className="banner-kicker">{winnerNames.length > 1 ? 'EMPATE' : 'GANÓ'}</div>
+                    <div className="banner-name">
+                      {winnerNames.length > 1 ? winnerNames.join(' y ') : (winnerNames[0] || '—')}
+                    </div>
+                    <div className="banner-sub">
+                      {g.showdownDescr ? `con ${g.showdownDescr}` : 'los demás se retiraron'}
+                      {g.potWon ? ` · +${fmt(g.potWon)}` : ''}
+                    </div>
+                    {nextIn != null && <div className="banner-count">Próxima mano en {nextIn}s</div>}
+                    <div className="gg-banner-btns">
+                      {reveal.length > 0 && (
+                        <button className="gg-small-btn" onClick={() => setRevealOpen(true)}>Ver manos</button>
+                      )}
+                      {iFolded && !iRevealed && (
+                        <button className="gg-small-btn" onClick={showMyCards}>Mostrar mis cartas</button>
+                      )}
+                    </div>
+                    {iFolded && iRevealed && <div className="banner-sub">Mostraste tus cartas ✓</div>}
+                  </>
+                ) : (
+                  <div className="banner-kicker">Repartiendo la mesa…</div>
+                )}
+              </div>
+            )
+          )}
 
+          {revealOpen && handOver && boardReady && reveal.length > 0 && (
+            <div className="gg-reveal">
+              <div className="gg-reveal-head">
+                <span>Cartas ganadoras</span>
+                <button onClick={() => setRevealOpen(false)} aria-label="Cerrar">✕</button>
+              </div>
+              {[...reveal]
+                .sort((a, b) => (winnerIds.includes(b.userId) ? 1 : 0) - (winnerIds.includes(a.userId) ? 1 : 0))
+                .map((r) => {
+                  const won = winnerIds.includes(r.userId)
+                  return (
+                    <div key={r.userId} className={`reveal-row ${won ? 'win' : ''}`}>
+                      <div className="reveal-head">
+                        <span>{won ? '🏆 ' : ''}{nameOf(r.userId)}</span>
+                        <span className="reveal-mano">{r.mano}</span>
+                      </div>
+                      <div className="reveal-cards">
+                        {r.cards.map((c, i) => (
+                          <span key={c} className="reveal-card" style={{ animationDelay: `${i * 90}ms` }}>
+                            <Card code={c} size="sm" dim={!won && !winSet.has(c)} />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
+
+          {pickerOpen && (
+            <>
+              <div className="gg-picker-backdrop" onClick={() => setPickerOpen(false)} />
+              <div className="gg-picker">
+                {Object.entries(REACTIONS).map(([key, [emoji, label]]) => (
+                  <button key={key} onClick={() => react(key)}>
+                    <span>{emoji}</span>
+                    <small>{label}</small>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {myTurn && raiseOpen && canRaise && (
+            <div className="gg-raise">
+              <div className="gg-raise-amt">{fmt(Math.min(Math.max(betTo, minRaiseTo), myMaxTotal))}</div>
+              <div className="gg-presets">
+                <button onClick={() => setBetTo(clampBet(minRaiseTo))} disabled={busy}>Mín</button>
+                <button onClick={() => setBetTo(presetBet(0.33))} disabled={busy}>⅓</button>
+                <button onClick={() => setBetTo(presetBet(0.5))} disabled={busy}>½</button>
+                <button onClick={() => setBetTo(presetBet(0.75))} disabled={busy}>¾</button>
+                <button onClick={() => setBetTo(presetBet(1))} disabled={busy}>Bote</button>
+                <button onClick={() => setBetTo(myMaxTotal)} disabled={busy}>Todo</button>
+              </div>
+              <input
+                type="range"
+                min={minRaiseTo}
+                max={myMaxTotal}
+                step={5}
+                value={Math.min(Math.max(betTo, minRaiseTo), myMaxTotal)}
+                onChange={(e) => setBetTo(+e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="gg-controls">
+          {myTurn ? (
+            <div className="gg-actions">
+              <button className="gg-act fold" onClick={() => act('fold')} disabled={busy}>Retirarse</button>
+              <button className="gg-act call" onClick={() => act('call')} disabled={busy}>
+                {toCall > 0 ? <>Pagar<small>{fmt(Math.min(toCall, stackOf(me)))}</small></> : 'Pasar'}
+              </button>
+              {canRaise ? (
+                raiseOpen ? (
+                  <button
+                    className="gg-act raise"
+                    onClick={() => act(betTo >= myMaxTotal ? 'allin' : 'raise', { amount: betTo })}
+                    disabled={busy}
+                  >
+                    {betTo >= myMaxTotal ? 'All-in' : (g.currentBet > 0 ? 'Subir a' : 'Apostar')}
+                    <small>{fmt(Math.min(Math.max(betTo, minRaiseTo), myMaxTotal))}</small>
+                  </button>
+                ) : (
+                  <button className="gg-act raise" onClick={() => setRaiseOpen(true)} disabled={busy}>
+                    {g.currentBet > 0 ? 'Subir' : 'Apostar'}
+                  </button>
+                )
+              ) : (
+                <button className="gg-act raise" onClick={() => act('allin')} disabled={busy}>All-in</button>
+              )}
+            </div>
+          ) : (
+            <div className="gg-wait">
+              {g.status === 'betting' ? `Esperando a ${nameOf(turnId)}…` : ''}
+            </div>
+          )}
+        </div>
       </div>
 
       <Chat

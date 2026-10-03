@@ -1,43 +1,48 @@
-// pila de fichas en perspectiva (montón), sin números
-// variant: 'pot' | 'bet' | 'stack'
-const CFG = {
-  pot: { w: 34, cap: 12, step: 12, rise: 4, cols: 3, gap: 0.62 },
-  bet: { w: 26, cap: 10, step: 8, rise: 4, cols: 1, gap: 0.6 },
-  stack: { w: 20, cap: 10, step: 16, rise: 3.5, cols: 2, gap: 0.55 },
+// pila de fichas de colores por denominación + monto en píldora
+const DENOMS = [
+  [5000, 'maroon'],
+  [1000, 'yellow'],
+  [500, 'purple'],
+  [100, 'black'],
+  [25, 'green'],
+  [5, 'red'],
+  [1, 'white'],
+]
+
+const MAX_COLS = 6
+const MAX_PER_COL = 5
+
+export const fmt = (n) => Math.round(n || 0).toLocaleString('en-US')
+
+function breakdown(amount) {
+  let left = Math.round(amount)
+  const cols = []
+  for (const [v, color] of DENOMS) {
+    const n = Math.floor(left / v)
+    if (n > 0) {
+      cols.push({ color, count: Math.min(MAX_PER_COL, n) })
+      left -= n * v
+    }
+  }
+  return cols.slice(0, MAX_COLS)
 }
 
-const COL_BASE = [4, 0, 2, 1] // desnivel entre columnas para que parezca montón
-
-export default function Chips({ amount, variant = 'bet' }) {
+export default function Chips({ amount, label = true }) {
   const amt = Math.round(amount || 0)
   if (amt <= 0) return null
-  const c = CFG[variant] || CFG.bet
-  const total = Math.max(1, Math.min(c.cap * c.cols, Math.round(amt / c.step)))
-
-  const cols = Array.from({ length: c.cols }, () => 0)
-  for (let i = 0; i < total; i++) cols[i % c.cols] += 1
-  const maxPer = Math.max(...cols)
-  const faceH = c.w * 0.42
-  const h = faceH + 6 + (maxPer - 1) * c.rise + 6
-  const width = c.w + (c.cols - 1) * c.w * c.gap
-
+  const cols = breakdown(amt)
   return (
-    <div className={`chips2 ${variant}`} style={{ width, height: h }}>
-      {cols.map((count, ci) => (
-        <div
-          key={ci}
-          className="chip-col"
-          style={{ left: ci * c.w * c.gap, bottom: COL_BASE[ci] || 0, width: c.w, height: h }}
-        >
-          {Array.from({ length: count }).map((_, i) => (
-            <span
-              key={i}
-              className="chip2"
-              style={{ width: c.w, height: faceH, bottom: i * c.rise }}
-            />
-          ))}
-        </div>
-      ))}
+    <div className="gg-chips">
+      <div className="gg-chip-row">
+        {cols.map((col, ci) => (
+          <span key={ci} className="gg-chip-col" style={{ height: 18 + (col.count - 1) * 3 }}>
+            {Array.from({ length: col.count }).map((_, i) => (
+              <i key={i} className={`gg-chip ${col.color}`} style={{ bottom: i * 3 }} />
+            ))}
+          </span>
+        ))}
+      </div>
+      {label && <span className="gg-amt">{fmt(amt)}</span>}
     </div>
   )
 }

@@ -9,8 +9,10 @@ export function useRoom(code) {
   const [messages, setMessages] = useState([])
   const [me, setMe] = useState(null)
   const [err, setErr] = useState('')
+  const [reactions, setReactions] = useState({})
   const roomIdRef = useRef(null)
   const aliveRef = useRef(true)
+  const reactChanRef = useRef(null)
 
   const refetch = useCallback(async () => {
     const roomId = roomIdRef.current
@@ -52,6 +54,22 @@ export function useRoom(code) {
     await supabase.from('messages').insert({ room_id: roomId, user_id: user.id, name, audio_path: path })
   }, [])
 
+  // reacciones efímeras (caras) por broadcast, sin tocar la DB
+  const showReaction = useCallback((userId, key) => {
+    const at = Date.now()
+    setReactions((r) => ({ ...r, [userId]: { key, at } }))
+    setTimeout(() => {
+      setReactions((r) => (r[userId]?.at === at ? (({ [userId]: _, ...rest }) => rest)(r) : r))
+    }, 3200)
+  }, [])
+
+  const sendReaction = useCallback(async (key) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    showReaction(user.id, key)
+    reactChanRef.current?.send({ type: 'broadcast', event: 'react', payload: { userId: user.id, key } })
+  }, [showReaction])
+
   const voiceUrl = useCallback((path) => {
     return supabase.storage.from('voces').getPublicUrl(path).data.publicUrl
   }, [])
@@ -59,6 +77,8 @@ export function useRoom(code) {
   useEffect(() => {
     aliveRef.current = true
     let chan
+    let reactChan
+    let cancelled = false
     ;(async () => {
       try {
         const s = await ensureSession()
@@ -80,6 +100,16 @@ export function useRoom(code) {
             setMessages((m) => (m.some((x) => x.id === p.new.id) ? m : [...m, p.new].slice(-80)))
           })
           .subscribe()
+
+        // topic compartido por sala (el de arriba es único por cliente, no sirve para broadcast)
+        if (!cancelled) {
+          reactChan = supabase.channel(`react:${r.id}`, { config: { broadcast: { self: false } } })
+            .on('broadcast', { event: 'react' }, ({ payload }) => {
+              if (payload?.userId && payload?.key) showReaction(payload.userId, payload.key)
+            })
+            .subscribe()
+          reactChanRef.current = reactChan
+        }
       } catch (e) { if (aliveRef.current) setErr(String(e.message || e)) }
     })()
 
@@ -88,10 +118,13 @@ export function useRoom(code) {
 
     return () => {
       aliveRef.current = false
+      cancelled = true
       clearInterval(poll)
       if (chan) supabase.removeChannel(chan)
+      if (reactChan) supabase.removeChannel(reactChan)
+      if (reactChanRef.current === reactChan) reactChanRef.current = null
     }
-  }, [code, refetch, loadMessages])
+  }, [code, refetch, loadMessages, showReaction])
 
-  return { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl }
+  return { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl, reactions, sendReaction }
 }
