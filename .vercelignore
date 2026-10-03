@@ -1,0 +1,7 @@
+.env
+.env.*
+*.backup.gz
+IMG_*.png
+node_modules
+dist
+supabase/.temp
