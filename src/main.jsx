@@ -7,6 +7,21 @@ import Lobby from './screens/Lobby.jsx'
 import Table from './screens/Table.jsx'
 import Ranking from './screens/Ranking.jsx'
 import Toaster from './components/Toaster.jsx'
+import { registerSW } from 'virtual:pwa-register'
+
+// PWA: en mobile (sobre todo iOS instalada) casi nunca se busca versión nueva.
+// Chequear al abrir, al volver a la app y cada hora; con autoUpdate recarga sola.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, reg) {
+    if (!reg) return
+    const check = () => reg.update().catch(() => {})
+    setInterval(check, 60 * 60 * 1000)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') check()
+    })
+  },
+})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
