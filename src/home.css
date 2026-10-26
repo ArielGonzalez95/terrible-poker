@@ -1,0 +1,130 @@
+/* =========================================================
+   INICIO (crear / unirse): mismo lenguaje visual que la mesa
+   ========================================================= */
+.hm-screen {
+  position: fixed; inset: 0; z-index: 1;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 8%, rgba(38, 140, 105, 0.28), transparent 70%),
+    radial-gradient(ellipse 130% 100% at 50% 40%, #15181c 0%, #0c0e11 55%, #050608 100%);
+  background-color: #08090b;
+}
+.hm-wrap {
+  max-width: 440px; margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 22px) 18px calc(env(safe-area-inset-bottom) + 28px);
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* ---- logo ---- */
+.hm-hero { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 4px; }
+.hm-logo { position: relative; width: 170px; height: 104px; }
+.hm-logo-felt {
+  position: absolute; left: 0; right: 0; top: 18px; bottom: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, #1f7a5f, #0a3f30 85%);
+  box-shadow: 0 0 0 5px #b8873a, 0 0 0 7px #2a1a08, 0 12px 28px rgba(0, 0, 0, 0.6), inset 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+.hm-logo-cards {
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  display: flex;
+}
+.hm-logo-cards .pc { --cw: 52px; }
+.hm-logo-cards .pc:first-child { transform: rotate(-10deg) translate(6px, 4px); }
+.hm-logo-cards .pc:last-child { transform: rotate(9deg) translate(-6px, 4px); }
+.hm-title {
+  font-size: 2.1rem; font-weight: 500; letter-spacing: 0.5px; line-height: 1.05;
+  color: #fff; text-shadow: none; margin-top: 8px;
+}
+.hm-title b { font-weight: 900; color: #ffd84a; }
+.hm-sub { font-size: 0.85rem; color: rgba(255, 255, 255, 0.55); }
+
+/* ---- campos ---- */
+.hm-field { display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; }
+.hm-field > span {
+  color: rgba(255, 255, 255, 0.6); font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.hm-field input {
+  min-height: 52px; padding: 12px 14px; border-radius: 12px;
+  font-size: 1.1rem; color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.hm-field input::placeholder { color: rgba(255, 255, 255, 0.3); }
+.hm-field input:focus { outline: none; border-color: #ffd84a; box-shadow: 0 0 0 3px rgba(255, 216, 74, 0.18); }
+.hm-code {
+  text-align: center; text-transform: uppercase;
+  font-size: 1.9rem !important; font-weight: 800; letter-spacing: 12px; padding-left: 26px !important;
+  font-family: "Roboto Mono", ui-monospace, monospace;
+}
+
+/* ---- pestañas ---- */
+.hm-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.hm-tabs button {
+  min-height: 42px; border-radius: 10px; font-size: 0.95rem; font-weight: 700;
+  background: transparent; color: rgba(255, 255, 255, 0.6); box-shadow: none; border: none;
+}
+.hm-tabs button.on { background: #ffd84a; color: #241800; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+
+/* ---- panel ---- */
+.hm-panel {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 16px; border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  animation: hmIn 0.25s ease-out both;
+}
+@keyframes hmIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.hm-choice { display: flex; flex-direction: column; gap: 8px; }
+.hm-choice-head { display: flex; align-items: baseline; gap: 6px; }
+.hm-choice-head span { font-size: 0.9rem; font-weight: 700; }
+.hm-choice-head small { font-size: 0.72rem; color: rgba(255, 255, 255, 0.45); }
+.hm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hm-chip {
+  min-height: 38px; padding: 6px 13px; border-radius: 999px;
+  font-size: 0.88rem; font-weight: 700;
+  background: rgba(255, 255, 255, 0.07); color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.hm-chip.on {
+  background: radial-gradient(circle at 50% 35%, #2fbf80, #17734d);
+  border-color: #6ee7b7; color: #fff;
+  box-shadow: 0 0 0 2px rgba(110, 231, 183, 0.18);
+}
+
+.hm-summary {
+  font-size: 0.82rem; color: rgba(255, 255, 255, 0.6); text-align: center;
+  padding: 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.25);
+}
+.hm-summary b { color: #ffd84a; }
+.hm-note { font-size: 0.8rem; color: rgba(255, 255, 255, 0.5); text-align: center; margin-top: -6px; }
+
+.hm-cta {
+  min-height: 56px; border-radius: 14px; font-size: 1.1rem; font-weight: 900;
+  background: linear-gradient(180deg, #ffcf3f, #d18a0b); color: #2a1a00;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+.hm-cta:disabled { opacity: 0.6; }
+
+.hm-err {
+  text-align: center; font-size: 0.88rem; color: #ffb4b4;
+  padding: 10px; border-radius: 10px;
+  background: rgba(226, 59, 59, 0.12); border: 1px solid rgba(226, 59, 59, 0.35);
+}
+
+.hm-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hm-links button {
+  min-height: 46px; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
+  background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: none;
+}

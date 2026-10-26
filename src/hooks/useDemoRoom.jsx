@@ -21,14 +21,18 @@ function newSim(n) {
   }
 }
 
+// la URL puede preconfigurar la prueba: /demo?n=6&speed=rapida&auto=1&allin=1
+const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams()
+const QN = Math.min(9, Math.max(2, Number(QS.get('n')) || 4))
+
 export function useDemoRoom() {
-  const [n, setN] = useState(4)
-  const [speed, setSpeed] = useState('normal')
-  const [autoMe, setAutoMe] = useState(false)
-  const [allInMode, setAllInMode] = useState(false)
+  const [n, setN] = useState(QN)
+  const [speed, setSpeed] = useState(SPEEDS[QS.get('speed')] ? QS.get('speed') : 'normal')
+  const [autoMe, setAutoMe] = useState(QS.get('auto') === '1')
+  const [allInMode, setAllInMode] = useState(QS.get('allin') === '1')
   const [panelOpen, setPanelOpen] = useState(false)
   const [reactions, setReactions] = useState({})
-  const simRef = useRef(newSim(4))
+  const simRef = useRef(newSim(QN))
   const [snap, setSnap] = useState(() => structuredClone(simRef.current))
 
   const publish = useCallback(() => setSnap(structuredClone(simRef.current)), [])
