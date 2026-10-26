@@ -16,10 +16,21 @@ export function norm(code) {
 export const rankLabel = (r) => (r === 'T' ? '10' : r)
 export const suitSym = (s) => SUITS[s] || ''
 
-export default function Card({ code, hidden, small, size, animate, dim }) {
+// flip: llega boca abajo y se da vuelta (flipDelay ms después de montarse)
+export default function Card({ code, hidden, small, size, animate, dim, flip, flipDelay = 0 }) {
   const c = hidden ? null : norm(code)
   const sz = size || (small ? 'sm' : 'board')
   if (!c) return <div className={`pc back ${sz}`} />
+  if (flip) {
+    return (
+      <div className={`pc-flip ${sz}`} style={{ '--flip-delay': `${flipDelay}ms` }}>
+        <div className="pc-flip-inner">
+          <Card code={code} size={sz} dim={dim} />
+          <div className={`pc back ${sz} pc-flip-back`} />
+        </div>
+      </div>
+    )
+  }
   const [r, s] = c
   const cls = [
     'pc', sz,

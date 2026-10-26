@@ -4,6 +4,7 @@ import { useRoom } from '../hooks/useRoom.js'
 import { waLink, roomUrl, joinRoom, invokeGame, leaveRoom } from '../lib/rooms.js'
 import Chat from '../components/Chat.jsx'
 import { toast } from '../lib/toast.js'
+import { fmt } from '../components/Chips.jsx'
 
 export default function Lobby() {
   const { code } = useParams()
@@ -72,7 +73,7 @@ export default function Lobby() {
       <h1>Sala {room.code}</h1>
 
       <div className="card">
-        <p>Buy-in: <b>{room.config.buyin} USD</b></p>
+        <p>Buy-in: <b>{fmt(room.config.buyin)} USD</b></p>
         <p>Ciega: <b>{room.config.startBlind} USD</b>, x2 cada {room.config.handsPerBlindUp} manos</p>
         <p>Tiempo por jugada: <b>{room.config.playTimeout}s</b></p>
       </div>

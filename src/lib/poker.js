@@ -79,5 +79,6 @@ export function manoEs(descr) {
   if ((m = d.match(/two pair,\s*(\w+)'?s?\s*&\s*(\w+)'?s?/i))) return `Doble par: ${rk(m[1])} y ${rk(m[2])}`
   if ((m = d.match(/pair,\s*(\w+)'?s?/i))) return `Par de ${rk(m[1])}`
   if ((m = d.match(/high card,\s*(\w+)/i))) return `Carta alta: ${rk(m[1])}`
+  if ((m = d.match(/^(\w+) high$/i))) return `Carta alta: ${rk(m[1])}` // pokersolver: "A High"
   return d
 }

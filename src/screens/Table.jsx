@@ -97,6 +97,17 @@ export default function Table({ useData = useRoom }) {
   const [raiseOpen, setRaiseOpen] = useState(false)
   const [revealOpen, setRevealOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // tapete: verde oscuro o azul noche (se recuerda en este dispositivo)
+  const [felt, setFelt] = useState(() => {
+    const q = new URLSearchParams(location.search).get('felt')
+    if (q === 'green' || q === 'navy') return q
+    try { return localStorage.getItem('felt') || 'green' } catch { return 'green' }
+  })
+  const toggleFelt = () => setFelt((f) => {
+    const nf = f === 'green' ? 'navy' : 'green'
+    try { localStorage.setItem('felt', nf) } catch { /* sin storage */ }
+    return nf
+  })
   const lastReactAt = useRef(0)
   const [now, setNow] = useState(Date.now())
   const timeoutSent = useRef(0)
@@ -257,7 +268,7 @@ export default function Table({ useData = useRoom }) {
     : 0
 
   return (
-    <div className="gg-screen">
+    <div className="gg-screen" data-felt={felt}>
       <div className="gg-wrap">
         <div className="gg-top">
           <div className="gg-pill teal">
@@ -273,6 +284,9 @@ export default function Table({ useData = useRoom }) {
           </div>
           <div className="gg-pill">Sala {room.code}</div>
           <div className="gg-top-right">
+            <button className="gg-icon-btn felt-btn" onClick={toggleFelt} aria-label="Cambiar tapete">
+              <i className={`felt-dot ${felt === 'green' ? 'navy' : 'green'}`} />
+            </button>
             {leaveAsk ? (
               <span className="gg-leave-ask">
                 ¿Salir?
@@ -298,15 +312,22 @@ export default function Table({ useData = useRoom }) {
             </div>
           )}
 
-          <div className="gg-board">
+          {/* 5 casilleros fijos: contenedores del reparto (la carta vuela boca abajo y se da vuelta) */}
+          <div className={`gg-board ${g.handNo ? 'live' : ''}`}>
             {[0, 1, 2, 3, 4].map((i) => {
               const dealt = g.board?.[i] && i < shownBoard
-              if (!dealt) return null
               const delay = i < 3 ? i * 130 : 0
               return (
-                <DealCard key={`b${i}-${g.handNo}-${g.board[i]}`} originRef={deckRef} delay={delay}>
-                  <Card code={g.board[i]} size="board" dim={dimEnabled && !winSet.has(g.board[i])} />
-                </DealCard>
+                <div key={i} className={`gg-slot ${dealt ? 'filled' : ''}`}>
+                  {dealt && (
+                    <DealCard key={`b${i}-${g.handNo}-${g.board[i]}`} originRef={deckRef} delay={delay}>
+                      <Card
+                        code={g.board[i]} size="board" flip flipDelay={delay + 380}
+                        dim={dimEnabled && !winSet.has(g.board[i])}
+                      />
+                    </DealCard>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -374,7 +395,10 @@ export default function Table({ useData = useRoom }) {
             if (isMe && myHand.length) {
               cards = myHand.map((c, i) => (
                 <DealCard key={`m${g.handNo}-${i}-${c}`} originRef={deckRef} delay={idx * 120 + i * 240}>
-                  <Card code={c} size="hole" dim={(pSet ? !pSet.has(c) : false) || folded} />
+                  <Card
+                    code={c} size="hole" flip flipDelay={idx * 120 + i * 240 + 420}
+                    dim={(pSet ? !pSet.has(c) : false) || folded}
+                  />
                 </DealCard>
               ))
             } else if (showOpp) {
@@ -513,28 +537,55 @@ export default function Table({ useData = useRoom }) {
             </>
           )}
 
-          {myTurn && raiseOpen && canRaise && (
-            <div className="gg-raise">
-              <div className="gg-raise-amt">{fmt(Math.min(Math.max(betTo, minRaiseTo), myMaxTotal))}</div>
-              <div className="gg-presets">
-                <button onClick={() => setBetTo(clampBet(minRaiseTo))} disabled={busy}>Mín</button>
-                <button onClick={() => setBetTo(presetBet(0.33))} disabled={busy}>⅓</button>
-                <button onClick={() => setBetTo(presetBet(0.5))} disabled={busy}>½</button>
-                <button onClick={() => setBetTo(presetBet(0.75))} disabled={busy}>¾</button>
-                <button onClick={() => setBetTo(presetBet(1))} disabled={busy}>Bote</button>
-                <button onClick={() => setBetTo(myMaxTotal)} disabled={busy}>Todo</button>
-              </div>
-              <input
-                type="range"
-                min={minRaiseTo}
-                max={myMaxTotal}
-                step={5}
-                value={Math.min(Math.max(betTo, minRaiseTo), myMaxTotal)}
-                onChange={(e) => setBetTo(+e.target.value)}
-              />
-            </div>
-          )}
         </div>
+
+        {/* hoja de subida: elegir monto y confirmar explícitamente */}
+        {myTurn && raiseOpen && canRaise && (() => {
+          const amt = Math.min(Math.max(betTo, minRaiseTo), myMaxTotal)
+          const allIn = amt >= myMaxTotal
+          const step = g.blind || 10
+          const verb = g.currentBet > 0 ? 'subir a' : 'apostar'
+          return (
+            <>
+              <div className="gg-sheet-backdrop" onClick={() => setRaiseOpen(false)} />
+              <div className="gg-raise-sheet" role="dialog" aria-label="Elegir monto">
+                <div className="gg-rs-title">{g.currentBet > 0 ? '¿A cuánto querés subir?' : '¿Cuánto querés apostar?'}</div>
+                <div className="gg-rs-amount">
+                  <button className="gg-rs-step" onClick={() => setBetTo(clampBet(amt - step))} disabled={busy || amt <= minRaiseTo} aria-label="Menos">−</button>
+                  <div className={`gg-rs-value ${allIn ? 'allin' : ''}`}>
+                    {fmt(amt)}
+                    {allIn && <span>ALL-IN</span>}
+                  </div>
+                  <button className="gg-rs-step" onClick={() => setBetTo(clampBet(amt + step))} disabled={busy || allIn} aria-label="Más">+</button>
+                </div>
+                <div className="gg-rs-hint">Mínimo {fmt(minRaiseTo)} · Tus fichas {fmt(myMaxTotal)}</div>
+                <div className="gg-presets">
+                  <button onClick={() => setBetTo(clampBet(minRaiseTo))} disabled={busy}>Mínimo</button>
+                  <button onClick={() => setBetTo(presetBet(0.5))} disabled={busy}>½ bote</button>
+                  <button onClick={() => setBetTo(presetBet(0.75))} disabled={busy}>¾ bote</button>
+                  <button onClick={() => setBetTo(presetBet(1))} disabled={busy}>Bote</button>
+                  <button onClick={() => setBetTo(presetBet(2))} disabled={busy}>2× bote</button>
+                  <button onClick={() => setBetTo(myMaxTotal)} disabled={busy}>All-in</button>
+                </div>
+                <input
+                  type="range" min={minRaiseTo} max={myMaxTotal} step={step} value={amt}
+                  onChange={(e) => setBetTo(+e.target.value)}
+                  aria-label="Monto"
+                />
+                <div className="gg-rs-actions">
+                  <button className="gg-rs-cancel" onClick={() => setRaiseOpen(false)} disabled={busy}>Cancelar</button>
+                  <button
+                    className={`gg-rs-confirm ${allIn ? 'allin' : ''}`}
+                    onClick={() => act(allIn ? 'allin' : 'raise', { amount: amt })}
+                    disabled={busy}
+                  >
+                    ✓ Confirmar: {allIn ? `all-in ${fmt(amt)}` : `${verb} ${fmt(amt)}`}
+                  </button>
+                </div>
+              </div>
+            </>
+          )
+        })()}
 
         <div className="gg-controls">
           {myTurn ? (
@@ -544,22 +595,13 @@ export default function Table({ useData = useRoom }) {
                 {toCall > 0 ? <>Pagar<small>{fmt(Math.min(toCall, stackOf(me)))}</small></> : 'Pasar'}
               </button>
               {canRaise ? (
-                raiseOpen ? (
-                  <button
-                    className="gg-act raise"
-                    onClick={() => act(betTo >= myMaxTotal ? 'allin' : 'raise', { amount: betTo })}
-                    disabled={busy}
-                  >
-                    {betTo >= myMaxTotal ? 'All-in' : (g.currentBet > 0 ? 'Subir a' : 'Apostar')}
-                    <small>{fmt(Math.min(Math.max(betTo, minRaiseTo), myMaxTotal))}</small>
-                  </button>
-                ) : (
-                  <button className="gg-act raise" onClick={() => setRaiseOpen(true)} disabled={busy}>
-                    {g.currentBet > 0 ? 'Subir' : 'Apostar'}
-                  </button>
-                )
+                <button className="gg-act raise" onClick={() => setRaiseOpen(true)} disabled={busy}>
+                  {g.currentBet > 0 ? 'Subir' : 'Apostar'}<small>elegir monto</small>
+                </button>
               ) : (
-                <button className="gg-act raise" onClick={() => act('allin')} disabled={busy}>All-in</button>
+                <button className="gg-act raise" onClick={() => act('allin')} disabled={busy}>
+                  All-in<small>{fmt(myMaxTotal)}</small>
+                </button>
               )}
             </div>
           ) : (
