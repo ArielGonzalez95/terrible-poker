@@ -128,3 +128,76 @@
   background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: none;
 }
+
+/* =========================================================
+   SALA DE ESPERA (link de invitación)
+   ========================================================= */
+.hm-center { min-height: 100%; justify-content: center; }
+.lb-head { display: flex; align-items: center; gap: 16px; padding: 4px 4px 0; }
+.lb-cards { position: relative; left: auto; top: auto; transform: none; flex: none; width: 92px; height: 72px; }
+.lb-cards .pc { --cw: 44px; }
+.lb-kicker {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.lb-code {
+  font-family: "Roboto Mono", ui-monospace, monospace;
+  font-size: 2.6rem; font-weight: 800; letter-spacing: 6px; line-height: 1.05;
+  color: #ffd84a; text-shadow: none;
+}
+
+.lb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.lb-stats > div {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 10px 4px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.lb-stats small { font-size: 0.66rem; letter-spacing: 1px; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+.lb-stats b { font-size: 1.2rem; font-weight: 900; }
+.lb-stats span { font-size: 0.68rem; color: rgba(255, 255, 255, 0.45); }
+
+.lb-seats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lb-seat {
+  position: relative; display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 8px 10px; border-radius: 14px;
+  background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: hmIn 0.25s ease-out both;
+}
+.lb-seat i {
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; font-style: normal; font-size: 1.3rem;
+  background: radial-gradient(circle at 50% 35%, #2fbf80, #17734d);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+.lb-seat i.talking { box-shadow: 0 0 0 3px #ffd84a; animation: speakBlink 0.9s ease-in-out infinite; }
+.lb-seat span { font-weight: 700; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-seat em {
+  position: absolute; right: 8px; top: -7px;
+  font-style: normal; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px; background: #ffd84a; color: #241800;
+}
+.lb-seat.me { border-color: rgba(110, 231, 183, 0.55); }
+.lb-seat.empty { border-style: dashed; background: transparent; color: rgba(255, 255, 255, 0.35); }
+.lb-seat.empty i { background: transparent; box-shadow: none; border: 1px dashed rgba(255, 255, 255, 0.25); font-size: 1.1rem; }
+
+.lb-share { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+.lb-wa, .lb-copy {
+  min-height: 50px; border-radius: 14px; font-size: 0.95rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; text-decoration: none;
+}
+.lb-wa { background: linear-gradient(180deg, #2fd46f, #179848); color: #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
+.lb-copy {
+  background: rgba(255, 255, 255, 0.07); color: #fff; box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+.lb-wait {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 56px; border-radius: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.lb-dot { width: 10px; height: 10px; border-radius: 50%; background: #2fbf80; animation: lbPulse 1.2s ease-in-out infinite; }
+@keyframes lbPulse { 50% { opacity: 0.3; transform: scale(0.7); } }
+.lb-note { margin-top: 0; }
+.lb-links { grid-template-columns: 1fr; }
+.voice.on-lobby { right: 16px; bottom: calc(env(safe-area-inset-bottom) + 18px); flex-direction: row-reverse; }
+.hm-wrap:has(.lb-head) { padding-bottom: calc(env(safe-area-inset-bottom) + 90px); }

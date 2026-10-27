@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, ensureSession } from '../lib/supabase.js'
 
-// suscribe a room + players + game_state + chat por realtime, con refetch manual
+// suscribe a room + players + game_state + audios por realtime, con refetch manual
 export function useRoom(code) {
   const [room, setRoom] = useState(null)
   const [players, setPlayers] = useState([])
@@ -31,14 +31,6 @@ export function useRoom(code) {
     const { data } = await supabase.from('messages')
       .select('*').eq('room_id', roomId).order('created_at', { ascending: true }).limit(80)
     if (aliveRef.current && data) setMessages(data)
-  }, [])
-
-  const sendMessage = useCallback(async (text, name) => {
-    const roomId = roomIdRef.current
-    const t = text.trim().slice(0, 300)
-    if (!roomId || !t) return
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('messages').insert({ room_id: roomId, user_id: user.id, name, text: t })
   }, [])
 
   const sendVoice = useCallback(async (blob, name, ext) => {
@@ -126,5 +118,5 @@ export function useRoom(code) {
     }
   }, [code, refetch, loadMessages, showReaction])
 
-  return { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl, reactions, sendReaction }
+  return { room, players, state, messages, me, err, refetch, sendVoice, voiceUrl, reactions, sendReaction }
 }
