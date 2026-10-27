@@ -67,14 +67,6 @@
   background: rgba(255, 255, 255, 0.12); color: #fff; box-shadow: none;
 }
 
-/* chat arriba a la derecha en la mesa */
-.gg-screen .chat-fab {
-  top: calc(env(safe-area-inset-top) + 10px); bottom: auto; right: 14px;
-  width: 42px; height: 42px; font-size: 1.15rem;
-  background: linear-gradient(180deg, #2b2f33, #1a1d20);
-  border: 2px solid #3c4247; color: #fff;
-}
-.gg-screen .chat-panel { top: calc(env(safe-area-inset-top) + 60px); bottom: auto; }
 
 /* ---- mesa ---- */
 .gg-table {
@@ -555,3 +547,51 @@
 }
 .felt-dot.green { background: radial-gradient(circle at 35% 30%, #2a9a76, #0a3f30); }
 .felt-dot.navy  { background: radial-gradient(circle at 35% 30%, #3a64a8, #0f1f3d); }
+
+/* ---- revancha ---- */
+.gg-banner.champ .gg-banner-btns { margin-top: 10px; }
+.gg-banner.champ button.gg-small-btn {
+  margin-top: 0; min-height: 42px; padding: 4px 16px;
+  background: rgba(255, 255, 255, 0.12); color: #fff;
+}
+.gg-banner.champ button.gg-rematch {
+  margin-top: 0; padding: 4px 20px; font-weight: 900;
+  background: linear-gradient(180deg, #ffcf3f, #d18a0b); color: #2a1a00;
+}
+.gg-banner .banner-sub b { color: #ffd84a; }
+
+/* ---- audios: mic de la mesa + quién está hablando ---- */
+.voice { position: fixed; z-index: 40; display: flex; align-items: center; gap: 8px; }
+.voice.on-table { right: 14px; bottom: calc(env(safe-area-inset-bottom) + 92px); flex-direction: row-reverse; }
+.voice-btn {
+  width: 48px; height: 48px; min-height: 0; padding: 0; border-radius: 50%;
+  font-size: 1.3rem; color: #fff;
+  background: linear-gradient(180deg, #2b2f33, #1a1d20);
+  border: 2px solid #3c4247; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.voice.rec .voice-btn {
+  background: radial-gradient(circle at 50% 40%, #ff5a4d, #b3200f); border-color: #ff9b8f;
+  animation: recPulse 1s ease-in-out infinite;
+}
+.voice-time { font-size: 0.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.voice-cancel {
+  width: 34px; height: 34px; min-height: 0; padding: 0; border-radius: 50%;
+  font-size: 0.9rem; color: #fff; background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: none;
+}
+.voice-hint {
+  font-size: 0.72rem; font-weight: 700; color: #fff; white-space: nowrap;
+  padding: 4px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.65);
+}
+@keyframes recPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 90, 77, 0.6); }
+  50% { box-shadow: 0 0 0 10px rgba(255, 90, 77, 0); }
+}
+.gg-speaking {
+  position: absolute; left: -6px; top: -6px; z-index: 6;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0.8rem;
+  background: #ffd84a; box-shadow: 0 0 0 3px rgba(255, 216, 74, 0.35);
+  animation: speakBlink 0.9s ease-in-out infinite;
+}
+@keyframes speakBlink { 50% { box-shadow: 0 0 0 7px rgba(255, 216, 74, 0); transform: scale(1.08); } }

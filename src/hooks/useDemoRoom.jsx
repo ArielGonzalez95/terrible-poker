@@ -150,8 +150,6 @@ export function useDemoRoom() {
     me: ME,
     err: '',
     refetch: async () => {},
-    sendMessage: async () => {},
-    sendVoice: async () => {},
     voiceUrl: () => '',
     reactions,
     sendReaction,

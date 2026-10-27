@@ -6,8 +6,9 @@ import { bestHand, winners as calcWinners } from '../lib/poker.js'
 import Card, { norm, rankLabel, suitSym } from '../components/Card.jsx'
 import Chips, { fmt } from '../components/Chips.jsx'
 import DealCard from '../components/DealCard.jsx'
-import Chat from '../components/Chat.jsx'
+import { VoiceButton, useVoicePlayer } from '../components/Voice.jsx'
 import { toast } from '../lib/toast.js'
+import { avatarOf } from '../lib/avatar.js'
 import '../table.css'
 
 // revela cartas de la mesa de a poco: flop (3 juntas), luego turn y river 1x1
@@ -76,18 +77,11 @@ const REACTIONS = {
   aplausos: ['👏', 'Bien jugado'],
 }
 
-const AVATARS = ['🐱', '🦊', '🐻', '🐼', '🦁', '🐯', '🐸', '🐵', '🐙', '🦉', '🐶', '🐨', '🦄', '🐧']
-function avatarOf(id) {
-  let h = 0
-  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return AVATARS[h % AVATARS.length]
-}
-
 // useData: fuente de la sala (useRoom = Supabase real; useDemoRoom = bots locales en /demo)
 export default function Table({ useData = useRoom }) {
   const { code } = useParams()
   const data = useData(code)
-  const { room, players, state, messages, me, err, refetch, sendMessage, sendVoice, voiceUrl, reactions, sendReaction } = data
+  const { room, players, state, messages, me, err, refetch, sendVoice, voiceUrl, reactions, sendReaction } = data
   const invoke = data.invoke || invokeGame
   const doLeave = data.leave || leaveRoom
   const nav = useNavigate()
@@ -108,6 +102,7 @@ export default function Table({ useData = useRoom }) {
     try { localStorage.setItem('felt', nf) } catch { /* sin storage */ }
     return nf
   })
+  const speaking = useVoicePlayer(messages || [], me, voiceUrl)
   const lastReactAt = useRef(0)
   const [now, setNow] = useState(Date.now())
   const timeoutSent = useRef(0)
@@ -209,6 +204,18 @@ export default function Table({ useData = useRoom }) {
   async function showMyCards() {
     try { await invoke('show', { code }); await refetch() }
     catch (e) { toast(String(e.message || e), 'error') }
+  }
+  async function rematch(accept) {
+    if (busy) return
+    setBusy(true)
+    try { await invoke('rematch', { code, accept }); await refetch() }
+    catch (e) { toast(String(e.message || e), 'error') }
+    finally { setBusy(false) }
+  }
+  async function exitRoom() {
+    setBusy(true)
+    await doLeave(code)
+    nav('/')
   }
   async function leave() {
     if (!leaveAsk) { setLeaveAsk(true); return }
@@ -428,6 +435,7 @@ export default function Table({ useData = useRoom }) {
                   {badge && <span className="gg-badge">{badge}</span>}
                   <span className="gg-flag" />
                   {folded && !showOpp && <span className="gg-status">Retirado</span>}
+                  {speaking === id && <span className="gg-speaking" aria-label="Hablando">🔊</span>}
                   {reactions[id] && REACTIONS[reactions[id].key] && (
                     <div className="gg-react" key={reactions[id].at}>
                       <span className="gg-react-emoji">{REACTIONS[reactions[id].key][0]}</span>
@@ -460,9 +468,48 @@ export default function Table({ useData = useRoom }) {
                 <div className="banner-trophy">🏆</div>
                 <div className="banner-kicker">GANADOR DEL TORNEO</div>
                 <div className="banner-name">{championName || winnerNames[0] || '—'}</div>
-                {data.restart
-                  ? <button onClick={data.restart}>Jugar de nuevo</button>
-                  : <button onClick={() => nav('/')}>Volver al inicio</button>}
+                {data.restart ? (
+                  <button onClick={data.restart}>Jugar de nuevo</button>
+                ) : (() => {
+                  // revancha: todos los que siguen en la sala tienen que aceptar
+                  const votes = (g.rematch || []).filter((id) => players.some((p) => p.user_id === id))
+                  const iVoted = votes.includes(me)
+                  const pending = players.filter((p) => !votes.includes(p.user_id)).map((p) => p.name)
+                  const asker = players.find((p) => p.user_id === votes[0])?.name
+                  if (players.length < 2) {
+                    return (
+                      <>
+                        <div className="banner-sub">Los demás se fueron de la sala</div>
+                        <button onClick={() => nav('/')}>Volver al inicio</button>
+                      </>
+                    )
+                  }
+                  return (
+                    <>
+                      {g.rematchNo && !votes.length && (
+                        <div className="banner-sub">{nameOf(g.rematchNo)} no quiso revancha</div>
+                      )}
+                      {iVoted ? (
+                        <div className="banner-sub">Esperando a {pending.join(', ')}…</div>
+                      ) : votes.length > 0 ? (
+                        <div className="banner-sub"><b>{asker}</b> pide revancha</div>
+                      ) : null}
+                      <div className="gg-banner-btns">
+                        {!iVoted && (
+                          <button className="gg-rematch" onClick={() => rematch(true)} disabled={busy}>
+                            {votes.length ? '✓ Aceptar revancha' : '🔁 Revancha'}
+                          </button>
+                        )}
+                        {!iVoted && votes.length > 0 && (
+                          <button className="gg-small-btn" onClick={() => rematch(false)} disabled={busy}>No, gracias</button>
+                        )}
+                        {(iVoted || !votes.length) && (
+                          <button className="gg-small-btn" onClick={exitRoom} disabled={busy}>Salir</button>
+                        )}
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             ) : (
               <div className="gg-banner">
@@ -614,14 +661,11 @@ export default function Table({ useData = useRoom }) {
 
       {data.extra}
 
-      {!data.demo && <Chat
-        messages={messages}
-        me={me}
+      <VoiceButton
+        className="on-table"
         myName={players.find((p) => p.user_id === me)?.name || localStorage.getItem('name') || 'Yo'}
-        onSend={sendMessage}
-        onSendVoice={sendVoice}
-        voiceUrl={voiceUrl}
-      />}
+        onSendVoice={sendVoice || (async () => toast('En la demo los audios no se envían'))}
+      />
     </div>
   )
 }

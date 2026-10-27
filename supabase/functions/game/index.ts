@@ -49,6 +49,8 @@ interface Pub {
   nextHandAt?: number      // epoch ms: auto-siguiente mano
   champion?: Id | null     // ganador del torneo (si terminó)
   revealed?: Id[]          // foldeados que eligieron mostrar sus cartas
+  rematch?: Id[]           // votos a favor de la revancha (torneo terminado)
+  rematchNo?: Id | null    // quien rechazó la revancha
 }
 
 // ------------------------------------------------------------------ http
@@ -100,6 +102,8 @@ Deno.serve(async (req) => {
         return json(await showCards(admin, room, user.id))
       case 'leave':
         return json(await leave(admin, room, user.id))
+      case 'rematch':
+        return json(await rematch(admin, room, players, user.id, body.accept !== false))
       default:
         return json({ error: 'op desconocida: ' + op }, 400)
     }
@@ -536,6 +540,35 @@ async function leave(admin: any, room: any, uid: Id) {
   }
   await admin.from('players').delete().eq('room_id', room.id).eq('user_id', uid)
   return { ok: true }
+}
+
+// revancha: cuando todos los que siguen en la sala aceptan, se resetean fichas y arranca otro torneo
+async function rematch(admin: any, room: any, players: any[], uid: Id, accept: boolean) {
+  if (room.status !== 'done') throw new Error('el torneo no terminó')
+  if (!players.some((p) => p.user_id === uid)) throw new Error('no estás en la sala')
+  const { data: gs } = await admin.from('game_state').select('*').eq('room_id', room.id).single()
+  if (!gs) throw new Error('sin partida')
+  const pub: Pub = gs.public
+
+  if (!accept) {
+    pub.rematch = []
+    pub.rematchNo = uid
+    await save(admin, room.id, pub, gs)
+    return { ok: true }
+  }
+
+  pub.rematch = [...new Set([...(pub.rematch ?? []), uid])].filter((id) => players.some((p) => p.user_id === id))
+  pub.rematchNo = null
+  if (players.length < 2 || !players.every((p) => pub.rematch!.includes(p.user_id))) {
+    await save(admin, room.id, pub, gs)
+    return { ok: true, waiting: true }
+  }
+
+  // todos aceptaron: fichas de nuevo al buy-in y torneo desde la mano 1
+  await admin.from('players').update({ stack: room.config.buyin }).eq('room_id', room.id)
+  await admin.from('rooms').update({ status: 'playing', hand_no: 0 }).eq('id', room.id)
+  const fresh = players.map((p) => ({ ...p, stack: room.config.buyin }))
+  return startHand(admin, { ...room, status: 'playing', hand_no: 0 }, fresh)
 }
 
 // foldeado que elige mostrar sus cartas durante el hand_over
